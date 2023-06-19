@@ -38,7 +38,7 @@ export const babylonInit = async (): Promise<void> => {
     const scene = await createSceneModule.createScene(engine, canvas);
 
     // JUST FOR TESTING. Not needed for anything else
-    (window as any).scene = scene;
+    //(window as any).scene = scene;
 
     // Register a render loop to repeatedly render the scene
     engine.runRenderLoop(function () {
