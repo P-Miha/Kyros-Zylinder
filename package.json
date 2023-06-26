@@ -12,6 +12,7 @@
     "@babylonjs/loaders": "^6.0.0",
     "@babylonjs/materials": "^6.0.0",
     "ammo.js": "github:kripken/ammo.js",
+    "fs": "^0.0.1-security",
     "glsl": "^0.0.1",
     "recast-detour": "^1.6.1"
   },

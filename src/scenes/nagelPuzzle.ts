@@ -2,11 +2,10 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { CreateSceneClass } from "../createScene";
-
+import { BoundingInfo, Color3, Mesh, MeshBuilder, SceneLoader } from "@babylonjs/core";
 // If you don't need the standard material you will still need to import it since the scene requires it.
 // import "@babylonjs/core/Materials/standardMaterial";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
@@ -14,8 +13,21 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import grassTextureUrl from "../../assets/grass.jpg";
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
-
+import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
+
+// Custom Importe / 
+import { calculateLocalPoint, index, index2, point } from "../nagelDistanceField";
+import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
+// Laden und Parsen von SDF Dateien
+import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
+import { SDFData } from '../sdfParser';
+
+import NagelPuzzleStatic from "../../assets/meshes/Nagel1.stl";
+import NagelPuzzleMoveable from "../../assets/meshes/NagelmitPunkten.stl";
+import NagelPunkte from "../../assets/meshes/2700 Punkte auf Nageloberfläche.stl";
+
+
 
 export class DefaultSceneWithTexture implements CreateSceneClass {
     createScene = async (
@@ -36,71 +48,81 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 globalRoot: document.getElementById("#root") || undefined,
             });
         });
-
-        /**
-         * Function to read information out of a given SDL file.
-         * Read bbox.min, bbox.max, cellcize, res & numcells
-         * 
-         * @param  - LocalURL to the SDL file
-         * @returns - Returns special Array in the form of [bbox.min, bbox.max, cellsize, res, numcells, [distances]]
-         *          Where distances is an array of all distances in the SDL file, bbox.min is the minimum point of the bounding box, bbox.max is the maximum point of the bounding box, cellsize is the size of each cell, 
-         *          res is the resolution of the SDL file, and numcells is the number of cells in the SDL file.
-         *          bbox.min, bbox.max of type Vector3, cellsize of type float, res of type Vector3, numcells of type number, distances of type Array<float>
-         * 
-         */
-        const readSDL = async (url: string) => {
-            const response = await fetch(url);
-            const data = await response.text();
-            const lines = data.split("\n");
-            const bbox = {
-                min: new Vector3(0, 0, 0),
-                max: new Vector3(0, 0, 0),
-            };
-            let cellsize = 0;
-            const res = new Vector3(0, 0, 0);
-            let numcells = 0;
-            const distances: number[] = [];
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                if (line.startsWith("bbox.min")) {
-                    const values = line.split(" ");
-                    bbox.min = new Vector3(
-                        parseFloat(values[1]),
-                        parseFloat(values[2]),
-                        parseFloat(values[3])
-                    );
-                } else if (line.startsWith("bbox.max")) {
-                    const values = line.split(" ");
-                    bbox.max = new Vector3(
-                        parseFloat(values[1]),
-                        parseFloat(values[2]),
-                        parseFloat(values[3])
-                    );
-                } else if (line.startsWith("cellsize")) {
-                    const values = line.split(" ");
-                    cellsize = parseFloat(values[1]);
-                } else if (line.startsWith("res")) {
-                    const values = line.split(" ");
-                    res.x = parseFloat(values[1]);
-                    res.y = parseFloat(values[2]);
-                    res.z = parseFloat(values[3]);
-                } else if (line.startsWith("numcells")) {
-                    const values = line.split(" ");
-                    numcells = parseFloat(values[1]);
-                } else if (line.startsWith("distances")) {
-                    const values = line.split(" ");
-                    for (let j = 1; j < values.length; j++) {
-                        distances.push(parseFloat(values[j]));
-                    }
-                }
-            }
-            return [bbox.min, bbox.max, cellsize, res, numcells, distances];
-        };
-        console.log(await readSDL("https://github.com/P-Miha/Kyros-Zylinder/blob/master/assets/SDFInformation/Nagel1.sdf"));
+        STLFileLoader.DO_NOT_ALTER_FILE_COORDINATES = true;
+        // Import Nagel Puzzle Mesh via STL
+        const nagelPuzzleStaticLoad = await SceneLoader.ImportMeshAsync(
+            "",
+            "",
+            NagelPuzzleStatic,
+            scene, 
+            undefined,
+            ".stl"
+        );
+        const nagelPuzzleStatic = nagelPuzzleStaticLoad.meshes[0] as Mesh;
 
 
-   
+        nagelPuzzleStatic.scaling = new Vector3(1, 1, -1);
 
+        const nagelPuzzleMoveableLoad = await SceneLoader.ImportMeshAsync(
+            "",
+            "",
+            NagelPuzzleMoveable,
+            scene,
+            undefined,
+            ".stl"
+            
+        );
+        const nagelPunkteLoad = await SceneLoader.ImportMeshAsync(
+            "",
+            "",
+            NagelPunkte,
+            scene,
+            undefined,
+            ".stl"
+        );
+        const nagelPunkte = nagelPunkteLoad.meshes[0] as Mesh;
+        nagelPunkte.name = "NagelPunkte";
+        console.log("nagelPunkte", nagelPunkte.getVerticesData("position"));
+
+        nagelPuzzleMoveableLoad.meshes[0].name = "NagelPuzzleMoveable";
+        nagelPuzzleMoveableLoad.meshes[0].visibility = 0;
+        console.log(nagelPuzzleMoveableLoad.meshes[0]);
+
+        // Erstelle Kugelmesh
+        const sphere2 = MeshBuilder.CreateSphere(
+            "sphere",
+            { diameter: 0.5 },
+            scene
+        );
+        sphere2.position = new Vector3(-5,0,2);
+        sphere2.visibility = 1;
+  
+
+        // Die URL der SDF-Datei
+        const sdfFileUrl = 'https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.sdf';
+        // Definiert in einer ausgelagerten Datei
+        // Laded die SDF-Datei aus dem Internet und Parset diese in ein SDFData-Objekt
+        const loadFile = loadSDFFile(sdfFileUrl);
+        const sdfContent = parseSDFFileContent(await loadFile);
+        // Sphere Test
+
+        // Sphere2 Test (inside)
+        // Point -> calculateLocalPoint -> index (-> index2)
+        const calculatedPointinLocal2  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
+        console.log("2: Spherelocation World: ", sphere2.absolutePosition, "2: Spherelocation Local: ", calculatedPointinLocal2)
+        const temp2 = new Vector3(calculatedPointinLocal2.x, calculatedPointinLocal2.y, calculatedPointinLocal2.z * -1)
+        const calculatedIndex2 = index(temp2, sdfContent);
+        console.log("2: Index in SDF: ", calculatedIndex2)
+        console.log("2: Distanze vom Punkt zum Mesh laut SDF: ", sdfContent.distances[calculatedIndex2])
+
+        //Print SDF-Data
+        console.log("SDF-Data: ", sdfContent);
+        
+        // Erstelle empty mesh um eine Custom boundingbox zu erstellen
+        const boundingBox = new Mesh("boundingBox", scene);
+        boundingBox.setBoundingInfo(new BoundingInfo(sdfContent.bbox.min, sdfContent.bbox.max));
+        boundingBox.showBoundingBox = true;
+        
         // This creates and positions a free camera (non-mesh)
         const camera = new ArcRotateCamera(
             "my first camera",
@@ -155,6 +177,31 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         shadowGenerator.setDarkness(0.2);
 
         //shadowGenerator.getShadowMap()!.renderList!.push(sphere);
+        //Erstelle Material für Kollision mit Farbe Rot und Kollisionsfrei mit Farbe Grün
+        const collisionMaterial = new StandardMaterial("collisionMaterial", scene);
+        collisionMaterial.diffuseColor = new Color3(1, 0, 0);
+
+        const noCollisionMaterial = new StandardMaterial("noCollisionMaterial", scene);
+        noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
+        
+        // Checke jeden Frame ob die Kugel im Nagel ist
+        scene.onBeforeRenderObservable.add(() => {
+            // Point -> calculateLocalPoint -> index (-> index2)
+            const calculatedPointinLocal  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
+            //console.log("Spherelocation World: ", sphere2.absolutePosition, "Spherelocation Local: ", calculatedPointinLocal)
+            const temp = new Vector3(calculatedPointinLocal.x, calculatedPointinLocal.y, calculatedPointinLocal.z * -1)
+            const calculatedIndex = index(temp, sdfContent);
+            if (sdfContent.distances[calculatedIndex] < 0.5) {
+                console.log("Kugel ist im Nagel")
+                nagelPuzzleStatic.material = collisionMaterial;
+            }
+            else{
+                console.log("Kugel ist nicht im Nagel")
+                nagelPuzzleStatic.material = noCollisionMaterial;
+            }
+        }
+        );
+
 
         return scene;
     };

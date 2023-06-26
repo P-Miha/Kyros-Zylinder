@@ -18,5 +18,10 @@ module.exports = merge(common, {
         open: true,
         // host: '0.0.0.0', // enable to access from other devices on the network
         // https: true // enable when HTTPS is needed (like in WebXR)
+        headers: {
+            "Access-Control-Allow-Origin": "*", 
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+            "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization", 
+          }
     },
 });
