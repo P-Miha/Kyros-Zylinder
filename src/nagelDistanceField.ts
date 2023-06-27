@@ -52,3 +52,12 @@ export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
     const localPoint = Vector3.TransformCoordinates(point, invertedWorldMatrix);
     return localPoint;
 }
+
+export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFData): number {
+    const localPoint = calculateLocalPoint(point, mesh);
+    const indexofPoint = index(localPoint, sdfFile);
+    if (indexofPoint === -1) {
+        return -1;
+    }
+    return sdfFile.distances[indexofPoint];
+}   

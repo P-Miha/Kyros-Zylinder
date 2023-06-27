@@ -17,15 +17,13 @@ import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
-import { calculateLocalPoint, index, index2, point } from "../nagelDistanceField";
+import { calculateLocalPoint, index, index2, point, distanceToWorldpoint } from "../nagelDistanceField";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
 import { SDFData } from '../sdfParser';
-
+import { loadOffFile, parseOffFileContent } from '../offParser';
 import NagelPuzzleStatic from "../../assets/meshes/Nagel1.stl";
-import NagelPuzzleMoveable from "../../assets/meshes/NagelmitPunkten.stl";
-import NagelPunkte from "../../assets/meshes/2700 Punkte auf Nageloberfläche.stl";
 
 
 
@@ -66,27 +64,34 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const nagelPuzzleMoveableLoad = await SceneLoader.ImportMeshAsync(
             "",
             "",
-            NagelPuzzleMoveable,
+            NagelPuzzleStatic,
             scene,
             undefined,
             ".stl"
             
         );
-        const nagelPunkteLoad = await SceneLoader.ImportMeshAsync(
-            "",
-            "",
-            NagelPunkte,
-            scene,
-            undefined,
-            ".stl"
-        );
-        const nagelPunkte = nagelPunkteLoad.meshes[0] as Mesh;
-        nagelPunkte.name = "NagelPunkte";
-        console.log("nagelPunkte", nagelPunkte.getVerticesData("position"));
+        const nagelPuzzleMoveable = nagelPuzzleMoveableLoad.meshes[0] as Mesh;
+        nagelPuzzleMoveable.name = "NagelPuzzleMoveable";
+        nagelPuzzleMoveable.visibility = 1;
+        
+        // Erstelle leere Mesh um die Punkte zu speichern
+        // dabei sind die Punkte, die Punkte der Oberfläche des moveable Meshes
+        const nagelPunkte = new Mesh("NagelPunkte", scene);
+        nagelPunkte.parent = nagelPuzzleMoveableLoad.meshes[0];
+        const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.off");
+        const punkte: Vector3[] = parseOffFileContent(await punkteInfo);
+        // Erstelle ein leeres Mesh an jeden dieser Punkte und parente diesen an nagelPunkte 
+        // Vorerst sichbar 
+        for (let i = 0; i < punkte.length; i++) {
+            const punkt = new Mesh("Punkt" + i, scene)
+            punkt.position = punkte[i];
+            punkt.parent = nagelPunkte;
+            punkt.visibility = 1;
+        }
+        // Drehe Moveable Mesh um 180°
+        nagelPuzzleMoveable.rotation = new Vector3(0, Math.PI, 0);
 
-        nagelPuzzleMoveableLoad.meshes[0].name = "NagelPuzzleMoveable";
-        nagelPuzzleMoveableLoad.meshes[0].visibility = 0;
-        console.log(nagelPuzzleMoveableLoad.meshes[0]);
+
 
         // Erstelle Kugelmesh
         const sphere2 = MeshBuilder.CreateSphere(
@@ -108,12 +113,13 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
         // Sphere2 Test (inside)
         // Point -> calculateLocalPoint -> index (-> index2)
-        const calculatedPointinLocal2  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
-        console.log("2: Spherelocation World: ", sphere2.absolutePosition, "2: Spherelocation Local: ", calculatedPointinLocal2)
-        const temp2 = new Vector3(calculatedPointinLocal2.x, calculatedPointinLocal2.y, calculatedPointinLocal2.z * -1)
-        const calculatedIndex2 = index(temp2, sdfContent);
-        console.log("2: Index in SDF: ", calculatedIndex2)
-        console.log("2: Distanze vom Punkt zum Mesh laut SDF: ", sdfContent.distances[calculatedIndex2])
+        // const calculatedPointinLocal2  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
+        // console.log("2: Spherelocation World: ", sphere2.absolutePosition, "2: Spherelocation Local: ", calculatedPointinLocal2)
+        // const temp2 = new Vector3(calculatedPointinLocal2.x, calculatedPointinLocal2.y, calculatedPointinLocal2.z * -1)
+        // const calculatedIndex2 = index(temp2, sdfContent);
+        // console.log("2: Index in SDF: ", calculatedIndex2)
+        // console.log("2: Distanze vom Punkt zum Mesh laut SDF: ", sdfContent.distances[calculatedIndex2])
+
 
         //Print SDF-Data
         console.log("SDF-Data: ", sdfContent);
@@ -184,22 +190,24 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const noCollisionMaterial = new StandardMaterial("noCollisionMaterial", scene);
         noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
         
+        const moveableNagelPunkte = nagelPunkte.getChildMeshes()
         // Checke jeden Frame ob die Kugel im Nagel ist
         scene.onBeforeRenderObservable.add(() => {
-            // Point -> calculateLocalPoint -> index (-> index2)
-            const calculatedPointinLocal  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
-            //console.log("Spherelocation World: ", sphere2.absolutePosition, "Spherelocation Local: ", calculatedPointinLocal)
-            const temp = new Vector3(calculatedPointinLocal.x, calculatedPointinLocal.y, calculatedPointinLocal.z * -1)
-            const calculatedIndex = index(temp, sdfContent);
-            if (sdfContent.distances[calculatedIndex] < 0.5) {
-                console.log("Kugel ist im Nagel")
-                nagelPuzzleStatic.material = collisionMaterial;
-            }
-            else{
-                console.log("Kugel ist nicht im Nagel")
-                nagelPuzzleStatic.material = noCollisionMaterial;
-            }
+            const collided = Array<Vector3>();
+            // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
+            for (let i = 0; i < moveableNagelPunkte.length; i++) {
+                const currentPunkt = moveableNagelPunkte[i];
+                const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
+                if (distance > 0) {
+                    collided.push(currentPunkt.absolutePosition);
+                }
         }
+        if (collided.length == 0) {
+            nagelPuzzleStatic.material = noCollisionMaterial;
+        } else {
+            nagelPuzzleStatic.material = collisionMaterial;
+        }
+    }
         );
 
 
