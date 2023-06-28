@@ -2,7 +2,7 @@ import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { CreateSceneClass } from "../createScene";
+import { CreateSceneClass } from "../../createScene";
 
 import { RecastJSPlugin } from "@babylonjs/core/Navigation/Plugins/recastJSPlugin";
 import { FreeCamera } from "@babylonjs/core/Cameras/freeCamera";

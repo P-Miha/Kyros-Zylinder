@@ -92,7 +92,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         nagelPuzzleMoveable.rotation = new Vector3(0, Math.PI, 0);
 
 
-
         // Erstelle Kugelmesh
         const sphere2 = MeshBuilder.CreateSphere(
             "sphere",
@@ -102,7 +101,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         sphere2.position = new Vector3(-5,0,2);
         sphere2.visibility = 1;
   
-
         // Die URL der SDF-Datei
         const sdfFileUrl = 'https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.sdf';
         // Definiert in einer ausgelagerten Datei
@@ -198,7 +196,8 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             for (let i = 0; i < moveableNagelPunkte.length; i++) {
                 const currentPunkt = moveableNagelPunkte[i];
                 const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
-                if (distance > 0) {
+                // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
+                if (distance < 0 && distance != -1) {
                     collided.push(currentPunkt.absolutePosition);
                 }
         }

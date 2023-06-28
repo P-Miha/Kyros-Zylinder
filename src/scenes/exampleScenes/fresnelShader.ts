@@ -12,7 +12,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateSphere } from "@babylonjs/core/Meshes/Builders/sphereBuilder";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { CreateSceneClass } from "../createScene";
+import { CreateSceneClass } from "../../createScene";
 
 // If you don't need the standard material you will still need to import it since the scene requires it.
 // import "@babylonjs/core/Materials/standardMaterial";

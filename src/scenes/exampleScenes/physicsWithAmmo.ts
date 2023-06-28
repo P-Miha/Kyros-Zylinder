@@ -11,8 +11,8 @@ import "@babylonjs/core/Physics/physicsEngineComponent";
 // If you don't need the standard material you will still need to import it since the scene requires it.
 import "@babylonjs/core/Materials/standardMaterial";
 import { PhysicsImpostor } from "@babylonjs/core/Physics/physicsImpostor";
-import { ammoModule, ammoReadyPromise } from "../externals/ammo";
-import { CreateSceneClass } from "../createScene";
+import { ammoModule, ammoReadyPromise } from "../../externals/ammo";
+import { CreateSceneClass } from "../../createScene";
 
 class PhysicsSceneWithAmmo implements CreateSceneClass {
     preTasks = [ammoReadyPromise];
