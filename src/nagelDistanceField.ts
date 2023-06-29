@@ -1,4 +1,4 @@
-import { Mesh, int } from "@babylonjs/core";
+import { Mesh, float, int } from "@babylonjs/core";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SDFData } from "./sdfParser";
 
@@ -10,8 +10,10 @@ export function index2(x: int, y: int, z: int, resolution: Vector3): number {
 export function index(point: Vector3, sdfFile: SDFData): number{
     const o = sdfFile.bbox.min;
     if (!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)) {
+        console.log("Nicht in Box", point)
         return -1; // Nicht in BoundingBox, daher trivialer Fall
     }
+    console.log("In Box, keine -1", point)
     let calculatedPoint = point.subtract(o);
     calculatedPoint = calculatedPoint.divide(new Vector3(sdfFile.cellSize, sdfFile.cellSize, sdfFile.cellSize));
     const roundedPoint = new Vector3(
@@ -44,17 +46,15 @@ function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
  * @param mesh 
  * @returns localpoint vom Mesh
  */
-export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
-    const worldMatrix = mesh.getWorldMatrix();
-    const invertedWorldMatrix = new Matrix();
-    worldMatrix.invertToRef(invertedWorldMatrix);
 
-    const localPoint = Vector3.TransformCoordinates(point, invertedWorldMatrix);
-    return localPoint;
-}
+// export function calculateLocalPoint(point: Vector3, meshInvertedWorldMatrix: Matrix): Vector3 {
+//     const localPoint = Vector3.TransformCoordinates(point, meshInvertedWorldMatrix);
+//     return localPoint;
+// }
 
-export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFData): number {
-    const localPoint = calculateLocalPoint(point, mesh);
+export function distanceToWorldpoint(point: Vector3, meshInvertedWorldMatrix: Matrix, sdfFile: SDFData): float {
+    const localPoint = Vector3.TransformCoordinates(point, meshInvertedWorldMatrix)
+    //console.log("localPoint: ", localPoint)
     const indexofPoint = index(localPoint, sdfFile);
     if (indexofPoint === -1) {
         return -1;

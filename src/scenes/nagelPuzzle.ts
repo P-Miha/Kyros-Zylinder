@@ -1,7 +1,7 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { CreateSceneClass } from "../createScene";
@@ -17,7 +17,7 @@ import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
-import { calculateLocalPoint, index, index2, point, distanceToWorldpoint } from "../nagelDistanceField";
+import {index, index2, point, distanceToWorldpoint } from "../nagelDistanceField";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
@@ -46,6 +46,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 globalRoot: document.getElementById("#root") || undefined,
             });
         });
+        // Notwendig aufgrund verschiedener Koordinatensysteme
         STLFileLoader.DO_NOT_ALTER_FILE_COORDINATES = true;
         // Import Nagel Puzzle Mesh via STL
         const nagelPuzzleStaticLoad = await SceneLoader.ImportMeshAsync(
@@ -57,8 +58,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             ".stl"
         );
         const nagelPuzzleStatic = nagelPuzzleStaticLoad.meshes[0] as Mesh;
+        nagelPuzzleStatic.name = "NagelPuzzleStatic";
 
-
+        // Skaliere Mesh um -1 in Z-Achse, da STL-Loader Mesh um 180° dreht
         nagelPuzzleStatic.scaling = new Vector3(1, 1, -1);
 
         const nagelPuzzleMoveableLoad = await SceneLoader.ImportMeshAsync(
@@ -107,20 +109,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // Laded die SDF-Datei aus dem Internet und Parset diese in ein SDFData-Objekt
         const loadFile = loadSDFFile(sdfFileUrl);
         const sdfContent = parseSDFFileContent(await loadFile);
-        // Sphere Test
-
-        // Sphere2 Test (inside)
-        // Point -> calculateLocalPoint -> index (-> index2)
-        // const calculatedPointinLocal2  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
-        // console.log("2: Spherelocation World: ", sphere2.absolutePosition, "2: Spherelocation Local: ", calculatedPointinLocal2)
-        // const temp2 = new Vector3(calculatedPointinLocal2.x, calculatedPointinLocal2.y, calculatedPointinLocal2.z * -1)
-        // const calculatedIndex2 = index(temp2, sdfContent);
-        // console.log("2: Index in SDF: ", calculatedIndex2)
-        // console.log("2: Distanze vom Punkt zum Mesh laut SDF: ", sdfContent.distances[calculatedIndex2])
-
-
-        //Print SDF-Data
-        console.log("SDF-Data: ", sdfContent);
         
         // Erstelle empty mesh um eine Custom boundingbox zu erstellen
         const boundingBox = new Mesh("boundingBox", scene);
@@ -187,27 +175,83 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
         const noCollisionMaterial = new StandardMaterial("noCollisionMaterial", scene);
         noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
-        
+
+
+        function setupWorker(meshInvertedWorldMatrix: Matrix, sdf: SDFData){
+            // Erstelle Worker
+            const nagelWorker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
+            // Gebe Konstanten Daten an Worker weiter
+            nagelWorker.postMessage({type: 'sdf', data: JSON.stringify(sdf)});
+            // Gebe Matrixdaten an Worker weiter
+            // Matrix muss in Float32Array umgewandelt werden, da Matrix nicht serialisierbar ist
+            const matrixData = new Float32Array(meshInvertedWorldMatrix.toArray());
+            nagelWorker.postMessage({type: 'worldMatrix', data: matrixData});
+            return nagelWorker;
+        }
+     
+        // Erstelle 1-Time bevor Render Loop
+        // Erhalte Worldmatrix von NagelPuzzleStatic und invertiere dieses um später Punkte in das lokale Koordinatensystem zu transformieren
+        const worldMatrix = nagelPuzzleStatic.getWorldMatrix();
+        const invertedWorldMatrix = new Matrix();
+        worldMatrix.invertToRef(invertedWorldMatrix);
+        console.log(worldMatrix)
+        // Erstelle Worker
+        const nagelWorker = setupWorker(invertedWorldMatrix, sdfContent);
+        // Speichere alle Punkte von NagelPunkte in Array
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
-        // Checke jeden Frame ob die Kugel im Nagel ist
+        
         scene.onBeforeRenderObservable.add(() => {
-            const collided = Array<Vector3>();
             // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
             for (let i = 0; i < moveableNagelPunkte.length; i++) {
                 const currentPunkt = moveableNagelPunkte[i];
-                const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
-                // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
-                if (distance < 0 && distance != -1) {
-                    collided.push(currentPunkt.absolutePosition);
-                }
-        }
-        if (collided.length == 0) {
-            nagelPuzzleStatic.material = noCollisionMaterial;
-        } else {
-            nagelPuzzleStatic.material = collisionMaterial;
-        }
-    }
-        );
+                const currentPosition = currentPunkt.absolutePosition;
+                // Serialize Vector3 zu JSON zum übertragen an Worker
+                let currentPunktPositionSerialized = [currentPosition.x, currentPosition.y, currentPosition.z];
+                nagelWorker.postMessage({type:'point', data: currentPunktPositionSerialized})
+            }
+          
+        })
+        // Erhalte Nachricht / Antwort vom Worker
+        nagelWorker.addEventListener("message", (event) => {
+            console.log("Hauptthread hat Nachricht erhalten")
+            //nagelPuzzleStatic.material = noCollisionMaterial;
+            const {type , data} = event.data;
+            //const deserializedData = JSON.parse(data);
+            console.log(data)
+            if (data == -1) {
+                console.log("Keine Kollision, da Punkt nicht in BB");
+            }
+            if (data < 0) {
+                console.log("Kollision");
+                nagelPuzzleStatic.material = collisionMaterial;
+            } else if (data <= 0 && data != -1) {
+                console.log("Hier sollte eine Kollision passiert sein!: " , data)
+            }
+            console.log(data)
+        });
+        
+
+
+        
+        // Checke jeden Frame ob die Kugel im Nagel ist
+        // scene.onBeforeRenderObservable.add(() => {
+        //     const collided = Array<Vector3>();
+        //     // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
+        //     for (let i = 0; i < moveableNagelPunkte.length; i++) {
+        //         const currentPunkt = moveableNagelPunkte[i];
+        //         const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
+        //         // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
+        //         if (distance < 0 && distance != -1) {
+        //             collided.push(currentPunkt.absolutePosition);
+        //         }
+        // }
+        // if (collided.length == 0) {
+        //     nagelPuzzleStatic.material = noCollisionMaterial;
+        // } else {
+        //     nagelPuzzleStatic.material = collisionMaterial;
+        // }
+    // }
+    //     );
 
 
         return scene;

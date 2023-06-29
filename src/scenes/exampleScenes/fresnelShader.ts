@@ -20,14 +20,14 @@ import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Effect } from "@babylonjs/core/Materials/effect";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 
-import grassTextureUrl from "../../assets/grass.jpg";
+import grassTextureUrl from "../../../assets/grass.jpg";
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight";
 import { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
 
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
-import fresnelVertexShader from "../glsl/fresnel/vertex.glsl";
-import fresnelFragmentShader from "../glsl/fresnel/fragment.glsl";
+import fresnelVertexShader from "../../glsl/fresnel/vertex.glsl";
+import fresnelFragmentShader from "../../glsl/fresnel/fragment.glsl";
 
 export class FresnelShaderScene implements CreateSceneClass {
     createScene = async (
