@@ -16,8 +16,8 @@ import "@babylonjs/core/Materials/Textures/Loaders/envTextureLoader";
 
 
 // digital assets
-import controllerModel from "../../assets/glb/samsung-controller.glb";
-import roomEnvironment from "../../assets/environment/room.env"
+import controllerModel from "../../../assets/glb/samsung-controller.glb";
+import roomEnvironment from "../../../assets/environment/room.env"
 
 export class LoadModelAndEnvScene implements CreateSceneClass {
     createScene = async (
