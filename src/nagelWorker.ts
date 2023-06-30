@@ -40,7 +40,7 @@ self.addEventListener("message", (event) => {
                 // Erstelle SDF Distanz Funktionscall und sende Ergebnis zurück
                 const result = distanceToWorldpoint(pointsData, meshData, sdfData);
                 self.postMessage({type: 'distanz', data: result});
-            };
+            }
             break;
         }
 });
