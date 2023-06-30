@@ -10,7 +10,7 @@ export function index2(x: int, y: int, z: int, resolution: Vector3): number {
 export function index(point: Vector3, sdfFile: SDFData): number{
     const o = sdfFile.bbox.min;
     if (!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)) {
-        console.log("Nicht in Box", point)
+        //console.log("Nicht in Box", point)
         return -1; // Nicht in BoundingBox, daher trivialer Fall
     }
     console.log("In Box, keine -1", point)
@@ -53,7 +53,16 @@ function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
 // }
 
 export function distanceToWorldpoint(point: Vector3, meshInvertedWorldMatrix: Matrix, sdfFile: SDFData): float {
-    const localPoint = Vector3.TransformCoordinates(point, meshInvertedWorldMatrix)
+    let localPoint = new Vector3(0,0,0);
+    try{
+        let temppoint = new Vector3(point._x, point._y, point._z)
+        console.log("Point: ", temppoint.x)
+        let tempMatrix = meshInvertedWorldMatrix 
+    localPoint = Vector3.TransformCoordinates(temppoint, tempMatrix)
+}   catch (e) {
+    console.log("Fehler bei der Transformation des Punktes in das lokale Koordinatensystem des Meshes")
+    console.log(e)
+}
     //console.log("localPoint: ", localPoint)
     const indexofPoint = index(localPoint, sdfFile);
     if (indexofPoint === -1) {

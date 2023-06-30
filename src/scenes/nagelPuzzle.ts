@@ -177,15 +177,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
 
 
-        function setupWorker(meshInvertedWorldMatrix: Matrix, sdf: SDFData){
+        function setupWorker(meshInvertedWorldMatrix: Matrix, sdfContent: SDFData){
             // Erstelle Worker
-            const nagelWorker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
-            // Gebe Konstanten Daten an Worker weiter
-            nagelWorker.postMessage({type: 'sdf', data: JSON.stringify(sdf)});
-            // Gebe Matrixdaten an Worker weiter
-            // Matrix muss in Float32Array umgewandelt werden, da Matrix nicht serialisierbar ist
-            const matrixData = new Float32Array(meshInvertedWorldMatrix.toArray());
-            nagelWorker.postMessage({type: 'worldMatrix', data: matrixData});
+            
             return nagelWorker;
         }
      
@@ -194,41 +188,44 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const worldMatrix = nagelPuzzleStatic.getWorldMatrix();
         const invertedWorldMatrix = new Matrix();
         worldMatrix.invertToRef(invertedWorldMatrix);
-        console.log(worldMatrix)
+        console.log("AnfangsMatrix", invertedWorldMatrix)
+        
         // Erstelle Worker
-        const nagelWorker = setupWorker(invertedWorldMatrix, sdfContent);
+        const nagelWorker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
+        // Gebe Konstanten Daten an Worker weiter
+        nagelWorker.postMessage({ type: 'sdfContent', data: sdfContent });
+        nagelWorker.postMessage({ type: 'meshInvertedWorldMatrix', data: invertedWorldMatrix });
+
         // Speichere alle Punkte von NagelPunkte in Array
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
-        
-        scene.onBeforeRenderObservable.add(() => {
-            // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
-            for (let i = 0; i < moveableNagelPunkte.length; i++) {
-                const currentPunkt = moveableNagelPunkte[i];
-                const currentPosition = currentPunkt.absolutePosition;
-                // Serialize Vector3 zu JSON zum übertragen an Worker
-                let currentPunktPositionSerialized = [currentPosition.x, currentPosition.y, currentPosition.z];
-                nagelWorker.postMessage({type:'point', data: currentPunktPositionSerialized})
-            }
+        //DEBUG
+        //Checke ob die ersten 3 Punkte in der SDF sind
+
+        nagelWorker.postMessage({type: 'point', data: moveableNagelPunkte[0].absolutePosition})
+        nagelWorker.postMessage({type: 'point', data: moveableNagelPunkte[1].absolutePosition})
+        nagelWorker.postMessage({type: 'point', data: moveableNagelPunkte[2].absolutePosition})
+
+
+        // scene.onBeforeRenderObservable.add(() => {
+        //     // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
+        //     for (let i = 0; i < moveableNagelPunkte.length; i++) {
+        //         const currentPunkt = moveableNagelPunkte[i];
+        //         const currentPosition = currentPunkt.absolutePosition;
+        //         //const currentPosition = currentPunkt.absolutePosition;
+        //         // Serialize Vector3 zu JSON zum übertragen an Worker
+        //         //let currentPunktPositionSerialized = [currentPosition.x, currentPosition.y, currentPosition.z];
+        //         nagelWorker.postMessage({type: 'point', data: currentPosition})
+        //     }
           
-        })
-        // Erhalte Nachricht / Antwort vom Worker
-        nagelWorker.addEventListener("message", (event) => {
-            console.log("Hauptthread hat Nachricht erhalten")
-            //nagelPuzzleStatic.material = noCollisionMaterial;
-            const {type , data} = event.data;
-            //const deserializedData = JSON.parse(data);
-            console.log(data)
-            if (data == -1) {
-                console.log("Keine Kollision, da Punkt nicht in BB");
-            }
-            if (data < 0) {
-                console.log("Kollision");
+        // })
+        nagelWorker.onmessage = function(event) {
+            const result = event.data;
+            console.log("Worker sendet zurück: ", result)
+            // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
+            if (result < 0 && result != -1) {
                 nagelPuzzleStatic.material = collisionMaterial;
-            } else if (data <= 0 && data != -1) {
-                console.log("Hier sollte eine Kollision passiert sein!: " , data)
             }
-            console.log(data)
-        });
+          };
         
 
 

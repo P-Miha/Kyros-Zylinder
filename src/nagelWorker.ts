@@ -1,10 +1,9 @@
-import { Matrix, Mesh, Scene, Vector3} from "@babylonjs/core";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SDFData} from "./sdfParser";
 import { distanceToWorldpoint } from "./nagelDistanceField";
 
 let sdfData: SDFData
 let meshData: Matrix
-let deserializedPoint: Vector3
 
 
 // Worker-Thread
@@ -21,43 +20,34 @@ let deserializedPoint: Vector3
  * @param position
  * @returns Distanz des Punktes zur SDF
  */
-self.addEventListener("message", (event) => {
-    //console.log("Worker hat Nachricht erhalten");
-    // Splitte Nachricht in Typ und Daten
-    const {type , data} = event.data;
-    switch (type) {
-        case "sdf":
-            // Deserialisiere Daten
-            const deserializedSDF = JSON.parse(data);
-            sdfData = deserializedSDF;
-            break;
-        case "worldMatrix":
-            // Matrixdaten sind in Float32Array gespeichert, daher muss diese wieder in Matrix umgewandelt werden
-            const matrixData = new Float32Array(data)
-            const matrix = Matrix.FromArray(matrixData); 
-            meshData = matrix;
-            break;
-        case "point":
-            // Deserialisiere Daten
-            //console.log("Worker hat Punkt erhalten");
-            let deserializedPoint = Vector3.FromArray(data)
-                // Erstelle SDF Distanz Funktionscall und sende Ergebnis zurück
-                //console.log("Worker berechnet Distanz");
-                let result = distanceToWorldpoint(deserializedPoint, meshData, sdfData);
-                //console.log("Aufruf von distanceToWorldpoint" , deserializedPoint, meshData, sdfData);
-                //console.log(result)
-                if (result === -1) {
-                    //console.log("Worker hat Distanz -1");
-                    break;
-                } else{
-                console.log("Worker hat Distanz " , result)
-                self.postMessage({type: 'distanz', data: result});
-            }
-            break;
-        }
+let savedSDFData: SDFData;
+let savedMatrix: Matrix;
+
+self.onmessage = function(event) {
+  const { type, data } = event.data;
+
+  if (type === 'sdfContent') {
+    savedSDFData = data as SDFData;
+    console.log("SDFData: ", savedSDFData);
+  }
+
+  if (type === 'meshInvertedWorldMatrix') {
+    savedMatrix = data as Matrix;
+    console.log("Matrix: ", savedMatrix);
+  }
+
+  // Perform calculations when a point comes in and SDFData and matrix are available
+  if (type ==='point' && savedSDFData && savedMatrix) {
+    console.log("Point: ", data)
+    console.log("Matrix: ", savedMatrix)
+    console.log("SDFData: ", savedSDFData)
+    const result = distanceToWorldpoint(data as Vector3, savedMatrix, savedSDFData);
+    // Send the result back to the main thread
+    self.postMessage(result);
+  }
+};
     // Je nach Typ, speichere Daten in entsprechende Variable
     // Wenn alle Daten vorhanden sind, berechne Distanz und sende zurück (wird angenommen das der Punkt zuletzt gesendet wird)
     
-});
 
 
