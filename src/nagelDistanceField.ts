@@ -55,10 +55,11 @@ function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
 export function distanceToWorldpoint(point: Vector3, meshInvertedWorldMatrix: Matrix, sdfFile: SDFData): float {
     let localPoint = new Vector3(0,0,0);
     try{
-        let temppoint = new Vector3(point._x, point._y, point._z)
+        const temppoint = new Vector3(point._x, point._y, point._z)
         console.log("Point: ", temppoint.x)
-        let tempMatrix = meshInvertedWorldMatrix 
-    localPoint = Vector3.TransformCoordinates(temppoint, tempMatrix)
+        const tempMatrix = meshInvertedWorldMatrix 
+        console.log("Eingabe : ", temppoint, tempMatrix)
+    const localPoint2 = Vector3.TransformCoordinates(temppoint, tempMatrix)
 }   catch (e) {
     console.log("Fehler bei der Transformation des Punktes in das lokale Koordinatensystem des Meshes")
     console.log(e)

@@ -41,13 +41,27 @@ self.onmessage = function(event) {
     console.log("Point: ", data)
     console.log("Matrix: ", savedMatrix)
     console.log("SDFData: ", savedSDFData)
-    const result = distanceToWorldpoint(data as Vector3, savedMatrix, savedSDFData);
+    //const result = distanceToWorldpoint(data as Vector3, savedMatrix, savedSDFData);
+    const localPoint = Vector3.TransformCoordinates(data as Vector3, savedMatrix);
+    console.log("WORKER::::: Localpointcall: ", localPoint)
     // Send the result back to the main thread
-    self.postMessage(result);
+    //self.postMessage(result);
   }
 };
-    // Je nach Typ, speichere Daten in entsprechende Variable
-    // Wenn alle Daten vorhanden sind, berechne Distanz und sende zurück (wird angenommen das der Punkt zuletzt gesendet wird)
-    
+function transformPoint(worldPoint: Vector3, localMatrixValues: Float32Array) {
+  // Extrahiere die Komponenten der Matrix
+  const m = localMatrixValues;
 
+  // Koordinaten des Punktes in World-Koordinaten
+  const x = worldPoint.x;
+  const y = worldPoint.y;
+  const z = worldPoint.z;
 
+  // Berechne die Umrechnung auf lokale Koordinaten
+  const localX = x * m[0] + y * m[1] + z * m[2] + m[3];
+  const localY = x * m[4] + y * m[5] + z * m[6] + m[7];
+  const localZ = x * m[8] + y * m[9] + z * m[10] + m[11];
+
+  // Erstelle und gib den Punkt in den lokalen Koordinaten zurück
+  return { x: localX, y: localY, z: localZ };
+} 

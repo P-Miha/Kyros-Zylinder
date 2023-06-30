@@ -5,7 +5,7 @@ import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { CreateSceneClass } from "../createScene";
-import { BoundingInfo, Color3, Mesh, MeshBuilder, SceneLoader } from "@babylonjs/core";
+import { BoundingInfo, Color3, DeepImmutable, Mesh, MeshBuilder, SceneLoader } from "@babylonjs/core";
 // If you don't need the standard material you will still need to import it since the scene requires it.
 // import "@babylonjs/core/Materials/standardMaterial";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
@@ -62,6 +62,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
         // Skaliere Mesh um -1 in Z-Achse, da STL-Loader Mesh um 180° dreht
         nagelPuzzleStatic.scaling = new Vector3(1, 1, -1);
+        nagelPuzzleStatic.position = new Vector3(3, -2, 1);
 
         const nagelPuzzleMoveableLoad = await SceneLoader.ImportMeshAsync(
             "",
@@ -188,7 +189,16 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const worldMatrix = nagelPuzzleStatic.getWorldMatrix();
         const invertedWorldMatrix = new Matrix();
         worldMatrix.invertToRef(invertedWorldMatrix);
-        console.log("AnfangsMatrix", invertedWorldMatrix)
+        console.log("WorldMatrix", worldMatrix)
+        console.log("AnfangsMatrix Inverted", invertedWorldMatrix)
+
+        const babylonCode = `// Hier importierst du die benötigten Klassen und Funktionen von Babylon.js
+        import { Vector3 } from 'babylonjs';
+        
+        // Hier kannst du die Vector3-Funktionen verwenden
+        //const vector = new Vector3(1, 2, 3);
+        //console.log(vector.length());
+        `
         
         // Erstelle Worker
         const nagelWorker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
@@ -196,6 +206,52 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         nagelWorker.postMessage({ type: 'sdfContent', data: sdfContent });
         nagelWorker.postMessage({ type: 'meshInvertedWorldMatrix', data: invertedWorldMatrix });
 
+        // PUNKTEVERGLEICH
+
+        function transformPoint(worldPoint: Vector3, localMatrixValues: Float32Array) {
+            // Extrahiere die Komponenten der Matrix
+            const m = localMatrixValues;
+          
+            // Koordinaten des Punktes in World-Koordinaten
+            const x = worldPoint.x;
+            const y = worldPoint.y;
+            const z = worldPoint.z;
+          
+            // Berechne die Umrechnung auf lokale Koordinaten
+            const localX = x * m[0] + y * m[1] + z * m[2] + m[3];
+            const localY = x * m[4] + y * m[5] + z * m[6] + m[7];
+            const localZ = x * m[8] + y * m[9] + z * m[10] + m[11];
+          
+            // Erstelle und gib den Punkt in den lokalen Koordinaten zurück
+            return { x: localX, y: localY, z: localZ };
+          }
+
+          //Punktevergleich
+        const temppunkte = new Array<Vector3>();
+        const punkt1 = new Vector3(0, 0, 0);
+        const punkt2 = new Vector3(1, 1, 1);
+        const punkt3 = new Vector3(2, 2, 2);
+        const punkt4 = new Vector3(3, 3, 3);
+        const punkt5 = new Vector3(4, 4, 4);
+        const punkt6 = new Vector3(-1 , -2, -3);
+        temppunkte.push(punkt1);
+        temppunkte.push(punkt2);
+        temppunkte.push(punkt3);
+        temppunkte.push(punkt4);
+        temppunkte.push(punkt5);
+        temppunkte.push(punkt6);
+        // Gehe für jeden Punkt durch und rufe jeweils die eigene transformPoint Funktion auf,
+        // sowie die in Babylon.js integrierte Funktion Vector3.TransformCoordinates
+        // vergleiche ob beide dasselbe ergebnis liefern
+        const worldMatrixToArray = Array.from(invertedWorldMatrix.toArray());
+        const float32Array = new Float32Array(worldMatrixToArray);
+        for (let i = 0; i < temppunkte.length; i++) {
+            const currentPunkt = temppunkte[i];
+            const transformedPoint = transformPoint(currentPunkt, float32Array);
+            const transformedPointBabylon = Vector3.TransformCoordinates(currentPunkt, invertedWorldMatrix);
+            console.log("Punkt", i, "transformiert mit eigener Funktion", transformedPoint);
+            console.log("Punkt", i, "transformiert mit Babylon Funktion", transformedPointBabylon);
+        }
         // Speichere alle Punkte von NagelPunkte in Array
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
         //DEBUG
