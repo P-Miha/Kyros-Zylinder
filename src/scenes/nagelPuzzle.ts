@@ -17,7 +17,6 @@ import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
-import {index, index2, point, distanceToWorldpoint } from "../nagelDistanceField";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
@@ -94,16 +93,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // Drehe Moveable Mesh um 180°
         nagelPuzzleMoveable.rotation = new Vector3(0, Math.PI, 0);
 
-
-        // Erstelle Kugelmesh
-        const sphere2 = MeshBuilder.CreateSphere(
-            "sphere",
-            { diameter: 0.5 },
-            scene
-        );
-        sphere2.position = new Vector3(-5,0,2);
-        sphere2.visibility = 1;
-  
         // Die URL der SDF-Datei
         const sdfFileUrl = 'https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.sdf';
         // Definiert in einer ausgelagerten Datei
@@ -113,7 +102,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         
         // Erstelle empty mesh um eine Custom boundingbox zu erstellen
         const boundingBox = new Mesh("boundingBox", scene);
-        boundingBox.setBoundingInfo(new BoundingInfo(sdfContent.bbox.min, sdfContent.bbox.max));
+        boundingBox.setBoundingInfo(new BoundingInfo(new Vector3().fromArray(sdfContent.bbox.min), new Vector3().fromArray(sdfContent.bbox.max)));
         boundingBox.showBoundingBox = true;
         
         // This creates and positions a free camera (non-mesh)
@@ -176,107 +165,40 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
         const noCollisionMaterial = new StandardMaterial("noCollisionMaterial", scene);
         noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
-
-
-        function setupWorker(meshInvertedWorldMatrix: Matrix, sdfContent: SDFData){
-            // Erstelle Worker
-            
-            return nagelWorker;
-        }
      
         // Erstelle 1-Time bevor Render Loop
         // Erhalte Worldmatrix von NagelPuzzleStatic und invertiere dieses um später Punkte in das lokale Koordinatensystem zu transformieren
         const worldMatrix = nagelPuzzleStatic.getWorldMatrix();
         const invertedWorldMatrix = new Matrix();
         worldMatrix.invertToRef(invertedWorldMatrix);
-        console.log("WorldMatrix", worldMatrix)
-        console.log("AnfangsMatrix Inverted", invertedWorldMatrix)
+        // Konvertiere Matrix zu Float32Array
+        const matrixArray = Array.from(invertedWorldMatrix.toArray());
+        const float32Array = new Float32Array(matrixArray);
 
-        const babylonCode = `// Hier importierst du die benötigten Klassen und Funktionen von Babylon.js
-        import { Vector3 } from 'babylonjs';
-        
-        // Hier kannst du die Vector3-Funktionen verwenden
-        //const vector = new Vector3(1, 2, 3);
-        //console.log(vector.length());
-        `
-        
         // Erstelle Worker
         const nagelWorker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
         // Gebe Konstanten Daten an Worker weiter
         nagelWorker.postMessage({ type: 'sdfContent', data: sdfContent });
-        nagelWorker.postMessage({ type: 'meshInvertedWorldMatrix', data: invertedWorldMatrix });
+        nagelWorker.postMessage({ type: 'meshInvertedWorldMatrix', data: float32Array });
 
-        // PUNKTEVERGLEICH
 
-        function transformPoint(worldPoint: Vector3, localMatrixValues: Float32Array) {
-            // Extrahiere die Komponenten der Matrix
-            const m = localMatrixValues;
-          
-            // Koordinaten des Punktes in World-Koordinaten
-            const x = worldPoint.x;
-            const y = worldPoint.y;
-            const z = worldPoint.z;
-          
-            // Berechne die Umrechnung auf lokale Koordinaten
-            const localX = x * m[0] + y * m[1] + z * m[2] + m[3];
-            const localY = x * m[4] + y * m[5] + z * m[6] + m[7];
-            const localZ = x * m[8] + y * m[9] + z * m[10] + m[11];
-          
-            // Erstelle und gib den Punkt in den lokalen Koordinaten zurück
-            return { x: localX, y: localY, z: localZ };
-          }
-
-          //Punktevergleich
-        const temppunkte = new Array<Vector3>();
-        const punkt1 = new Vector3(0, 0, 0);
-        const punkt2 = new Vector3(1, 1, 1);
-        const punkt3 = new Vector3(2, 2, 2);
-        const punkt4 = new Vector3(3, 3, 3);
-        const punkt5 = new Vector3(4, 4, 4);
-        const punkt6 = new Vector3(-1 , -2, -3);
-        temppunkte.push(punkt1);
-        temppunkte.push(punkt2);
-        temppunkte.push(punkt3);
-        temppunkte.push(punkt4);
-        temppunkte.push(punkt5);
-        temppunkte.push(punkt6);
-        // Gehe für jeden Punkt durch und rufe jeweils die eigene transformPoint Funktion auf,
-        // sowie die in Babylon.js integrierte Funktion Vector3.TransformCoordinates
-        // vergleiche ob beide dasselbe ergebnis liefern
-        const worldMatrixToArray = Array.from(invertedWorldMatrix.toArray());
-        const float32Array = new Float32Array(worldMatrixToArray);
-        for (let i = 0; i < temppunkte.length; i++) {
-            const currentPunkt = temppunkte[i];
-            const transformedPoint = transformPoint(currentPunkt, float32Array);
-            const transformedPointBabylon = Vector3.TransformCoordinates(currentPunkt, invertedWorldMatrix);
-            console.log("Punkt", i, "transformiert mit eigener Funktion", transformedPoint);
-            console.log("Punkt", i, "transformiert mit Babylon Funktion", transformedPointBabylon);
-        }
         // Speichere alle Punkte von NagelPunkte in Array
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
-        //DEBUG
-        //Checke ob die ersten 3 Punkte in der SDF sind
 
-        nagelWorker.postMessage({type: 'point', data: moveableNagelPunkte[0].absolutePosition})
-        nagelWorker.postMessage({type: 'point', data: moveableNagelPunkte[1].absolutePosition})
-        nagelWorker.postMessage({type: 'point', data: moveableNagelPunkte[2].absolutePosition})
-
-
-        // scene.onBeforeRenderObservable.add(() => {
-        //     // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
-        //     for (let i = 0; i < moveableNagelPunkte.length; i++) {
-        //         const currentPunkt = moveableNagelPunkte[i];
-        //         const currentPosition = currentPunkt.absolutePosition;
-        //         //const currentPosition = currentPunkt.absolutePosition;
-        //         // Serialize Vector3 zu JSON zum übertragen an Worker
-        //         //let currentPunktPositionSerialized = [currentPosition.x, currentPosition.y, currentPosition.z];
-        //         nagelWorker.postMessage({type: 'point', data: currentPosition})
-        //     }
-          
-        // })
+        scene.onBeforeRenderObservable.add(() => {
+            // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
+            for (let i = 0; i < moveableNagelPunkte.length; i++) {
+                const currentPunkt = moveableNagelPunkte[i];
+                const currentPosition = currentPunkt.absolutePosition;
+                //const currentPosition = currentPunkt.absolutePosition;
+                // Serialize Vector3 zu JSON zum übertragen an Worker
+                //let currentPunktPositionSerialized = [currentPosition.x, currentPosition.y, currentPosition.z];
+                nagelWorker.postMessage({type: 'point', data: [currentPosition.x, currentPosition.y, currentPosition.z]})
+            }
+        }
+        )
         nagelWorker.onmessage = function(event) {
             const result = event.data;
-            console.log("Worker sendet zurück: ", result)
             // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
             if (result < 0 && result != -1) {
                 nagelPuzzleStatic.material = collisionMaterial;

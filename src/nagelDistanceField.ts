@@ -1,33 +1,31 @@
-import { Mesh, float, int } from "@babylonjs/core";
-import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SDFData } from "./sdfParser";
 
 
-export function index2(x: int, y: int, z: int, resolution: Vector3): number {
-    return x + (resolution.x * (y + (z * resolution.y)))
+export function index2(x: number, y: number, z: number, resolution: number[]): number {
+    return x + (resolution[0] * (y + (z * resolution[1])))
 }
 
-export function index(point: Vector3, sdfFile: SDFData): number{
-    const o = sdfFile.bbox.min;
-    if (!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)) {
+export function index(point: number[], bboxMin: number[], bboxMax: number[], cellSize: number, res: number[]): number{
+    const o = bboxMin;
+    if (!inBox(point, bboxMin, bboxMax)) {
         //console.log("Nicht in Box", point)
         return -1; // Nicht in BoundingBox, daher trivialer Fall
     }
-    console.log("In Box, keine -1", point)
-    let calculatedPoint = point.subtract(o);
-    calculatedPoint = calculatedPoint.divide(new Vector3(sdfFile.cellSize, sdfFile.cellSize, sdfFile.cellSize));
-    const roundedPoint = new Vector3(
-        Math.round(calculatedPoint.x),
-        Math.round(calculatedPoint.y),
-        Math.round(calculatedPoint.z)
-    );
+    let calculatedPoint = [point[0] - o[0], point[1] - o[1], point[2] - o[2]];
+    calculatedPoint = [calculatedPoint[0] / cellSize, calculatedPoint[1] / cellSize, calculatedPoint[2] / cellSize];
+    const roundedPoint =[ // Runden auf nächste ganze Zahl
+        Math.round(calculatedPoint[0]),
+        Math.round(calculatedPoint[1]),
+        Math.round(calculatedPoint[2])
+];
     //return index2(calculatedPoint.x, calculatedPoint.y, calculatedPoint.z, sdfFile.res);
-    return index2(roundedPoint.x, roundedPoint.y, roundedPoint.z, sdfFile.res);
+    return index2(roundedPoint[0], roundedPoint[1], roundedPoint[2], res);
 }
 
-export function point(x: int, y: int, z: int, sdfFile: SDFData): Vector3{
+export function number(x: number, y: number, z: number, sdfFile: SDFData): number[]{
     const o = sdfFile.bbox.min;
-    return o.add(new Vector3((x + 0.5) * sdfFile.cellSize, (y + 0.5) * sdfFile.cellSize, (z + 0.5) * sdfFile.cellSize));
+    return [(o[0] + x) * sdfFile.cellSize, (o[1] + y) * sdfFile.cellSize, (o[2] + z) * sdfFile.cellSize];
+    //return o.add(new Vector3((x + 0.5) * sdfFile.cellSize, (y + 0.5) * sdfFile.cellSize, (z + 0.5) * sdfFile.cellSize));
 }
 /**
  * Ist im gegebenen Codeabschnitt aufgerufen, jedoch nicht dabei gewesen, daher selbst implementiert.
@@ -36,8 +34,8 @@ export function point(x: int, y: int, z: int, sdfFile: SDFData): Vector3{
  * @param bboxMax
  * @returns true, wenn Point: Vector3 in BoundingBox liegt, sonst false
  */
-function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
-    return vector.x >= bboxMin.x && vector.y >= bboxMin.y && vector.z >= bboxMin.z && vector.x <= bboxMax.x && vector.y <= bboxMax.y && vector.z <= bboxMax.z;
+function inBox(vector: number[], bboxMin: number[], bboxMax: number[]): boolean{
+    return vector[0] >= bboxMin[0] && vector[0] <= bboxMax[0] && vector[1] >= bboxMin[1] && vector[1] <= bboxMax[1] && vector[2] >= bboxMin[2] && vector[2] <= bboxMax[2];
 }
 /**
  *  Gegeben ein Punkt und ein Mesh, wird der Punkt in das lokale Koordinatensystem des Meshes transformiert,
@@ -52,22 +50,22 @@ function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
 //     return localPoint;
 // }
 
-export function distanceToWorldpoint(point: Vector3, meshInvertedWorldMatrix: Matrix, sdfFile: SDFData): float {
-    let localPoint = new Vector3(0,0,0);
-    try{
-        const temppoint = new Vector3(point._x, point._y, point._z)
-        console.log("Point: ", temppoint.x)
-        const tempMatrix = meshInvertedWorldMatrix 
-        console.log("Eingabe : ", temppoint, tempMatrix)
-    const localPoint2 = Vector3.TransformCoordinates(temppoint, tempMatrix)
-}   catch (e) {
-    console.log("Fehler bei der Transformation des Punktes in das lokale Koordinatensystem des Meshes")
-    console.log(e)
-}
-    //console.log("localPoint: ", localPoint)
-    const indexofPoint = index(localPoint, sdfFile);
-    if (indexofPoint === -1) {
-        return -1;
-    }
-    return sdfFile.distances[indexofPoint];
-}   
+// export function distanceToWorldpoint(point: Vector3, meshInvertedWorldMatrix: Matrix, sdfFile: SDFData): float {
+//     let localPoint = new Vector3(0,0,0);
+//     try{
+//         const temppoint = new Vector3(point._x, point._y, point._z)
+//         console.log("Point: ", temppoint.x)
+//         const tempMatrix = meshInvertedWorldMatrix 
+//         console.log("Eingabe : ", temppoint, tempMatrix)
+//     const localPoint2 = Vector3.TransformCoordinates(temppoint, tempMatrix)
+// }   catch (e) {
+//     console.log("Fehler bei der Transformation des Punktes in das lokale Koordinatensystem des Meshes")
+//     console.log(e)
+// }
+//     //console.log("localPoint: ", localPoint)
+//     const indexofPoint = index(localPoint, sdfFile);
+//     if (indexofPoint === -1) {
+//         return -1;
+//     }
+//     return sdfFile.distances[indexofPoint];
+// }   

@@ -12,12 +12,13 @@ export async function loadSDFFile(url: string): Promise<string> {
 }
 
 export interface SDFData {
+  // Vector3 ist nicht in Woker nutzbar, daher wechsel zu number[]
     bbox: {
-      min: Vector3,
-      max: Vector3
+      min: number[],
+      max: number[]
     },
     cellSize: number,
-    res: Vector3,
+    res: number[],
     numCells: number,
     distances: number[]
   }
@@ -26,11 +27,11 @@ export interface SDFData {
     const lines = sdfContent.trim().split('\n');
     const data: SDFData = {
       bbox: {
-        min: Vector3.Zero(),
-        max: Vector3.Zero()
+        min: [],
+        max: []
       },
       cellSize: 0,
-      res: Vector3.Zero(),
+      res: [],
       numCells: 0,
       distances: []
     };
@@ -52,13 +53,13 @@ export interface SDFData {
         
         if (values.length > 0) {
           if (i === 0) {
-            data.bbox.min = Vector3.FromArray(values)
+            data.bbox.min.push(...values)
           } else if (i === 1) {
-            data.bbox.max = Vector3.FromArray(values)
+            data.bbox.max.push(...values)
           } else if (i === 2) {
             data.cellSize = values[0];
           } else if (i === 3) {
-            data.res = Vector3.FromArray(values);
+            data.res.push(...values);
           } else if (i === 4) {
             data.numCells = values[0];
           } else {
@@ -70,13 +71,13 @@ export interface SDFData {
         
         if (values.length > 0) {
           if (i === 0) {
-            data.bbox.min = Vector3.FromArray(values)
+            data.bbox.min.push(...values)
           } else if (i === 1) {
-            data.bbox.max = Vector3.FromArray(values)
+            data.bbox.max.push(...values)
           } else if (i === 2) {
             data.cellSize = values[0];
           } else if (i === 3) {
-            data.res = Vector3.FromArray(values);
+            data.res.push(...values)
           } else if (i === 4) {
             data.numCells = values[0];
           } else {

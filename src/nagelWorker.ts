@@ -1,12 +1,30 @@
-import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SDFData} from "./sdfParser";
-import { distanceToWorldpoint } from "./nagelDistanceField";
-
-let sdfData: SDFData
-let meshData: Matrix
-
+import { index } from "./nagelDistanceField";
 
 // Worker-Thread
+
+let savedSDFData: SDFData;
+let savedMatrix: Float32Array;
+
+/**
+ *  Transformiert einen Punkt von World-Koordinaten in lokale Koordinaten eines Meshes via seines gegebenen Float32Arrays (Worldmatrix-Array zu Float32Array)
+ *  Nutzt number-Array, da Worker kein Zugriff auf Vector3 von BabylonJS hat [x,y,z] -> [0,1,2]
+ * @param worldPoint 
+ * @param localMatrixValues 
+ * @returns localPoint
+ */
+function transformPoint(worldPoint: number[], localMatrixValues: Float32Array) {
+  // Extrahiere die Komponenten der Matrix
+  const m = localMatrixValues;
+
+  // Berechne die Umrechnung auf lokale Koordinaten
+  const localX = worldPoint[0] * m[0] + worldPoint[1] * m[1] + worldPoint[2] * m[2] + m[3];
+  const localY = worldPoint[0] * m[4] + worldPoint[1] * m[5] + worldPoint[2] * m[6] + m[7];
+  const localZ = worldPoint[0] * m[8] + worldPoint[1] * m[9] + worldPoint[2] * m[10] + m[11];
+
+  // Erstelle und gib den Punkt in den lokalen Koordinaten zurück
+  return [localX, localY, localZ];
+}
 /**
  * Nagel-Worker für die Kollisionserkennung
  * Erhält die Position des zu prüfenden Punktes als Vector3 (Serialized)
@@ -20,48 +38,34 @@ let meshData: Matrix
  * @param position
  * @returns Distanz des Punktes zur SDF
  */
-let savedSDFData: SDFData;
-let savedMatrix: Matrix;
-
 self.onmessage = function(event) {
   const { type, data } = event.data;
 
+  if (type ==='point' && savedSDFData && savedMatrix) {
+    // console.log("Point: ", data)
+    // console.log("Matrix: ", savedMatrix)
+    // console.log("SDFData: ", savedSDFData)
+    //const result = distanceToWorldpoint(data as Vector3, savedMatrix, savedSDFData);
+    let localPoint = transformPoint(data, savedMatrix);
+    // Check via SDF if the point is inside the mesh
+    const indexResult = index(localPoint, savedSDFData.bbox.min, savedSDFData.bbox.max, savedSDFData.cellSize, savedSDFData.res);
+    if (indexResult === -1) { // Send back -1 and don't calculate the distance
+      self.postMessage(-1);
+    } else{
+      // Send the result back to the main thread
+      self.postMessage(savedSDFData.distances[indexResult]);
+      }
+
+    
+  }
   if (type === 'sdfContent') {
     savedSDFData = data as SDFData;
-    console.log("SDFData: ", savedSDFData);
   }
 
   if (type === 'meshInvertedWorldMatrix') {
-    savedMatrix = data as Matrix;
-    console.log("Matrix: ", savedMatrix);
+    savedMatrix = data as Float32Array;
   }
 
   // Perform calculations when a point comes in and SDFData and matrix are available
-  if (type ==='point' && savedSDFData && savedMatrix) {
-    console.log("Point: ", data)
-    console.log("Matrix: ", savedMatrix)
-    console.log("SDFData: ", savedSDFData)
-    //const result = distanceToWorldpoint(data as Vector3, savedMatrix, savedSDFData);
-    const localPoint = Vector3.TransformCoordinates(data as Vector3, savedMatrix);
-    console.log("WORKER::::: Localpointcall: ", localPoint)
-    // Send the result back to the main thread
-    //self.postMessage(result);
-  }
+ 
 };
-function transformPoint(worldPoint: Vector3, localMatrixValues: Float32Array) {
-  // Extrahiere die Komponenten der Matrix
-  const m = localMatrixValues;
-
-  // Koordinaten des Punktes in World-Koordinaten
-  const x = worldPoint.x;
-  const y = worldPoint.y;
-  const z = worldPoint.z;
-
-  // Berechne die Umrechnung auf lokale Koordinaten
-  const localX = x * m[0] + y * m[1] + z * m[2] + m[3];
-  const localY = x * m[4] + y * m[5] + z * m[6] + m[7];
-  const localZ = x * m[8] + y * m[9] + z * m[10] + m[11];
-
-  // Erstelle und gib den Punkt in den lokalen Koordinaten zurück
-  return { x: localX, y: localY, z: localZ };
-} 
