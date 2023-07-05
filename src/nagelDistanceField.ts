@@ -4,8 +4,8 @@ import { SDFData } from "./sdfParser";
 
 
 export function index2(x: int, y: int, z: int, resolution: Vector3): number {
-    return x + (resolution.x * (y + (z * resolution.y)))
-}
+    console.log("Index " , x + resolution.x*(y + resolution.y*z))
+    return x + resolution.x*(y + resolution.y*z)};
 
 export function index(point: Vector3, sdfFile: SDFData): number{
     const o = sdfFile.bbox.min;
@@ -18,12 +18,13 @@ export function index(point: Vector3, sdfFile: SDFData): number{
         Math.round(calculatedPoint.x),
         Math.round(calculatedPoint.y),
         Math.round(calculatedPoint.z)
-    );
+        )
+    // console.log("Berechneter Punkt ", calculatedPoint, " gerundet auf: " , roundedPoint)
     //return index2(calculatedPoint.x, calculatedPoint.y, calculatedPoint.z, sdfFile.res);
     return index2(roundedPoint.x, roundedPoint.y, roundedPoint.z, sdfFile.res);
 }
 
-export function point(x: int, y: int, z: int, sdfFile: SDFData): Vector3{
+export function pointFunction(x: int, y: int, z: int, sdfFile: SDFData): Vector3{
     const o = sdfFile.bbox.min;
     return o.add(new Vector3((x + 0.5) * sdfFile.cellSize, (y + 0.5) * sdfFile.cellSize, (z + 0.5) * sdfFile.cellSize));
 }
@@ -37,6 +38,7 @@ export function point(x: int, y: int, z: int, sdfFile: SDFData): Vector3{
 function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
     return vector.x >= bboxMin.x && vector.y >= bboxMin.y && vector.z >= bboxMin.z && vector.x <= bboxMax.x && vector.y <= bboxMax.y && vector.z <= bboxMax.z;
 }
+
 /**
  *  Gegeben ein Punkt und ein Mesh, wird der Punkt in das lokale Koordinatensystem des Meshes transformiert,
  *  indem die WorldMatrix des Meshes invertiert wird und der Punkt mit der invertierten Matrix transformiert wird. 
@@ -55,9 +57,26 @@ export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
 
 export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFData): number {
     const localPoint = calculateLocalPoint(point, mesh);
+    const gitterPoint = pointFunction(localPoint.x, localPoint.y, localPoint.z, sdfFile)
+    // console.log("Localpoint: " ,localPoint)
+    // console.log("Gitterpoint: " ,gitterPoint)
     const indexofPoint = index(localPoint, sdfFile);
     if (indexofPoint === -1) {
         return -1;
     }
     return sdfFile.distances[indexofPoint];
 }   
+/**
+ * Berechnet die benötigte änderung in Position und Orientierung, um von einer überschneideten Kollision zu einer an der Oberfläche berührenden Kollision zu kommen.
+ * Dabei wird der Kontaktpunkt der Kollision über den Gradienten bestimmt
+ */
+export function distanceAndOriantationDelta(collisionPoint: Vector3, sdfFile: SDFData,){
+    // Bestimmte Kontaktpunkt durch Gradienten der Distanzwerte
+    const dDelta = new Vector3(
+        (index(collisionPoint.add(new Vector3(sdfFile.cellSize, 0, 0)), sdfFile) - index(collisionPoint.subtract(new Vector3(sdfFile.cellSize, 0, 0)), sdfFile)) / 2, 
+        (index(collisionPoint.add(new Vector3(0, sdfFile.cellSize, 0)), sdfFile) - index(collisionPoint.subtract(new Vector3(0, sdfFile.cellSize, 0)), sdfFile)) / 2,
+        (index(collisionPoint.add(new Vector3(0, 0, sdfFile.cellSize)), sdfFile) - index(collisionPoint.subtract(new Vector3(0, 0, sdfFile.cellSize)), sdfFile)) / 2);
+    const normalVector = dDelta.divide(new Vector3(dDelta.length(), dDelta.length(), dDelta.length()));
+
+    return normalVector;
+}

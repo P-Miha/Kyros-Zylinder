@@ -11,17 +11,28 @@ export async function loadOffFile(url: string): Promise<string> {
     }
 }
 
-export  function parseOffFileContent(offContent: string): Array<Vector3> {
+export function parseOffFileContent(offContent: string): { vertices: Vector3[], normals: Vector3[] } {
     const lines = offContent.trim().split('\n');
-    const data = new Array<Vector3>();
-    // Überspringen von Zeilen 1 und 2
-    for (let i = 2; i < lines.length; i++) {
-        const line = lines[i].trim();
-        const values = line.split(' ').map(parseFloat);
-        // Solange Daten vorhanden sind, diese in das Array einfügen
-        if (values.length > 0) {
-            data.push(Vector3.FromArray(values));
+    const vertices: Vector3[] = [];
+    const normals: Vector3[] = [];
+  
+    // Zeile 1: OFF
+    // Zeile 2: Anzahl der Vertices, Anzahl der Faces, Anzahl der Kanten (nicht benötigt)
+  
+    for (let i = 3; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const values = line.split(' ').map(parseFloat);
+  
+      if (values.length >= 3) {
+        const vertex = Vector3.FromArray(values.slice(0, 3));
+        vertices.push(vertex);
+  
+        if (values.length >= 6) {
+          const normal = Vector3.FromArray(values.slice(3, 6));
+          normals.push(normal);
         }
+      }
     }
-    return data
-}
+  
+    return { vertices, normals };
+  }

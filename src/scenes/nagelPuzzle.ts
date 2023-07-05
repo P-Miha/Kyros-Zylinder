@@ -1,11 +1,11 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
-import { Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { CreateSceneClass } from "../createScene";
-import { BoundingInfo, Color3, Mesh, MeshBuilder, SceneLoader } from "@babylonjs/core";
+import { BoundingInfo, Color3, HighlightLayer, Mesh, MeshBuilder, SceneLoader } from "@babylonjs/core";
 // If you don't need the standard material you will still need to import it since the scene requires it.
 // import "@babylonjs/core/Materials/standardMaterial";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
@@ -17,7 +17,7 @@ import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
-import { calculateLocalPoint, index, index2, point, distanceToWorldpoint } from "../nagelDistanceField";
+import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint, distanceAndOriantationDelta } from "../nagelDistanceField";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
@@ -78,8 +78,10 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // dabei sind die Punkte, die Punkte der Oberfläche des moveable Meshes
         const nagelPunkte = new Mesh("NagelPunkte", scene);
         nagelPunkte.parent = nagelPuzzleMoveableLoad.meshes[0];
-        const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.off");
-        const punkte: Vector3[] = parseOffFileContent(await punkteInfo);
+        const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1n.off");
+        const offInfo = parseOffFileContent(await punkteInfo);
+        const punkte = offInfo.vertices
+        const normals = offInfo.normals
         // Erstelle ein leeres Mesh an jeden dieser Punkte und parente diesen an nagelPunkte 
         // Vorerst sichbar 
         for (let i = 0; i < punkte.length; i++) {
@@ -190,25 +192,67 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
         // Checke jeden Frame ob die Kugel im Nagel ist
-        scene.onBeforeRenderObservable.add(() => {
-            const collided = Array<Vector3>();
-            // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
-            for (let i = 0; i < moveableNagelPunkte.length; i++) {
-                const currentPunkt = moveableNagelPunkte[i];
-                const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
-                // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
-                if (distance < 0 && distance != -1) {
-                    collided.push(currentPunkt.absolutePosition);
-                }
+        // scene.onBeforeRenderObservable.add(() => {
+        //     const collided = Array<Vector3>();
+        //     // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
+        //     for (let i = 0; i < moveableNagelPunkte.length; i++) {
+        //         const currentPunkt = moveableNagelPunkte[i];
+        //         const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
+        //         // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
+        //         if (distance < 0 && distance != -1.0) {
+        //             collided.push(currentPunkt.absolutePosition);
+        //             //console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
+        //         }
+        //     }
+        //     if (collided.length == 0) {
+        //         nagelPuzzleStatic.material = noCollisionMaterial;
+        //     } else {
+        //         nagelPuzzleStatic.material = collisionMaterial;
+        //     }
+        // }
+        // );
+       
+        // DEBUG 
+        const sphere = MeshBuilder.CreateSphere(
+            "sphere",
+            { diameter: 1 },
+            scene
+        );
+        sphere.position = moveableNagelPunkte[0].absolutePosition;
+        const hl = new HighlightLayer("hl1", scene);
+        hl.addMesh(sphere, Color3.Green());
+        // Erstelle Pfeil
+        let direction = new Vector3(0, 0, 1);
+        const arrow = MeshBuilder.CreateTube('arrow', {
+            path: [new Vector3(0, 0, 0), direction.scale(2)],
+            radius: 0.05,
+            tessellation: 16,
+            updatable: true
+          }, scene);        
+        // Checke erste 3 Punkte
+        scene.onBeforeRenderObservable.add(() => { 
+        const collided = Array<Vector3>();
+        const currentPunkt = moveableNagelPunkte[0];
+        const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
+        console.log(distance)
+        // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
+        if (distance < 0 && distance != -1) {
+            collided.push(currentPunkt.absolutePosition);
+            console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
+            // Update Arrow mit Collisionsposition und Normalenvektor
+            const normalVector = distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent);
+            arrow.position = currentPunkt.absolutePosition;
+            arrow.rotationQuaternion = Quaternion.RotationAxis(normalVector, Math.PI / 2)
+
+            hl.addMesh(arrow, Color3.Red())
         }
+    
         if (collided.length == 0) {
             nagelPuzzleStatic.material = noCollisionMaterial;
         } else {
             nagelPuzzleStatic.material = collisionMaterial;
         }
-    }
-        );
-
+        });
 
         return scene;
     };
