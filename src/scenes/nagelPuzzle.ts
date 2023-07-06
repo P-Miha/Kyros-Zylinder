@@ -1,7 +1,7 @@
 import { Engine } from "@babylonjs/core/Engines/engine";
 import { Scene } from "@babylonjs/core/scene";
 import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera";
-import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { CreateSceneClass } from "../createScene";
@@ -17,7 +17,8 @@ import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
-import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint, distanceAndOriantationDelta } from "../nagelDistanceField";
+import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint } from "../nagelDistanceField";
+import { distanceAndOriantationDelta } from "../contactForce";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
@@ -78,7 +79,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // dabei sind die Punkte, die Punkte der Oberfläche des moveable Meshes
         const nagelPunkte = new Mesh("NagelPunkte", scene);
         nagelPunkte.parent = nagelPuzzleMoveableLoad.meshes[0];
-        const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1n.off");
+        const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.noff");
         const offInfo = parseOffFileContent(await punkteInfo);
         const punkte = offInfo.vertices
         const normals = offInfo.normals
@@ -240,10 +241,13 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             collided.push(currentPunkt.absolutePosition);
             console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
             // Update Arrow mit Collisionsposition und Normalenvektor
-            const normalVector = distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent);
+            const normalVector = normals[0];
             arrow.position = currentPunkt.absolutePosition;
-            arrow.rotationQuaternion = Quaternion.RotationAxis(normalVector, Math.PI / 2)
 
+            const NagelPuzzleMoveableWorldMatrix = nagelPuzzleMoveable.getWorldMatrix();
+            const transformedNormal = Vector3.TransformNormal(normalVector, NagelPuzzleMoveableWorldMatrix);
+            const target = arrow.position.add(transformedNormal);
+            arrow.lookAt(target);
             hl.addMesh(arrow, Color3.Red())
         }
     

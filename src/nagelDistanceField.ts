@@ -1,4 +1,4 @@
-import { Mesh, int } from "@babylonjs/core";
+import { Mesh, float, int } from "@babylonjs/core";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { SDFData } from "./sdfParser";
 
@@ -66,17 +66,3 @@ export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFDat
     }
     return sdfFile.distances[indexofPoint];
 }   
-/**
- * Berechnet die benötigte änderung in Position und Orientierung, um von einer überschneideten Kollision zu einer an der Oberfläche berührenden Kollision zu kommen.
- * Dabei wird der Kontaktpunkt der Kollision über den Gradienten bestimmt
- */
-export function distanceAndOriantationDelta(collisionPoint: Vector3, sdfFile: SDFData,){
-    // Bestimmte Kontaktpunkt durch Gradienten der Distanzwerte
-    const dDelta = new Vector3(
-        (index(collisionPoint.add(new Vector3(sdfFile.cellSize, 0, 0)), sdfFile) - index(collisionPoint.subtract(new Vector3(sdfFile.cellSize, 0, 0)), sdfFile)) / 2, 
-        (index(collisionPoint.add(new Vector3(0, sdfFile.cellSize, 0)), sdfFile) - index(collisionPoint.subtract(new Vector3(0, sdfFile.cellSize, 0)), sdfFile)) / 2,
-        (index(collisionPoint.add(new Vector3(0, 0, sdfFile.cellSize)), sdfFile) - index(collisionPoint.subtract(new Vector3(0, 0, sdfFile.cellSize)), sdfFile)) / 2);
-    const normalVector = dDelta.divide(new Vector3(dDelta.length(), dDelta.length(), dDelta.length()));
-
-    return normalVector;
-}
