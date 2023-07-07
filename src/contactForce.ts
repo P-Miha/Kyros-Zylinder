@@ -75,6 +75,6 @@ const lambaTimesInverse = invertedIneratiaMatrix(radius, mass).scale(lambda(movi
 const radiusCrossNormal = contactPoint.cross(normal)
 const quaterionChange = multiplyMatrix3x3WithVector3(lambaTimesInverse, radiusCrossNormal).scale(1/2)
 
-return (0, quaterionChange) 
-
+//return (0, quaterionChange) 
+return null
 }

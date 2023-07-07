@@ -223,7 +223,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const hl = new HighlightLayer("hl1", scene);
         hl.addMesh(sphere, Color3.Green());
         // Erstelle Pfeil
-        let direction = new Vector3(0, 0, 1);
+        const direction = new Vector3(0, 0, 1);
         const arrow = MeshBuilder.CreateTube('arrow', {
             path: [new Vector3(0, 0, 0), direction.scale(2)],
             radius: 0.05,
@@ -237,9 +237,11 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
         console.log(distance)
         // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
-        if (distance < 0 && distance != -1) {
+         if (distance < 0 && distance != -1) {
+        // eslint-disable-next-line no-constant-condition
+        // if (true){
             collided.push(currentPunkt.absolutePosition);
-            console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
+            //console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
             // Update Arrow mit Collisionsposition und Normalenvektor
             const normalVector = normals[0];
             arrow.position = currentPunkt.absolutePosition;
