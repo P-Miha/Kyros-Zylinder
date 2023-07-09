@@ -1,4 +1,4 @@
-import { Matrix, Mesh, Vector3, Vector4, float } from "@babylonjs/core";
+import { Matrix, Mesh, Quaternion, Vector3, Vector4, float } from "@babylonjs/core";
 import { SDFData } from "./sdfParser";
 import { index } from "./nagelDistanceField";
 /**
@@ -37,7 +37,6 @@ export function inertiaMatrix(radius: float, mass: float): Matrix {
     const values = [inertia, 0, 0,
                     0, inertia, 0,
                     0, 0, inertia];
-
     return Matrix.FromArray(values);
 }
 
@@ -46,12 +45,24 @@ export function invertedIneratiaMatrix(radius: float, mass: float): Matrix {
     const values = [inertia, 0, 0,
                     0, inertia, 0,
                     0, 0, inertia];
+    console.log("DEBUG: inertiaMatrix: ", Matrix.FromArray(values))
 
     return Matrix.FromArray(values);
 }
 
+export function calculateBoundingBoxDiagonalLength(minBox: Vector3, maxBox: Vector3): number {
+    const diffX = maxBox.x - minBox.x;
+    const diffY = maxBox.y - minBox.y;
+    const diffZ = maxBox.z - minBox.z;
+  
+    const diagonalLength = Math.sqrt(diffX * diffX + diffY * diffY + diffZ * diffZ);
+  
+    return diagonalLength;
+  }
+
 function lambda(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distance: float, radius: float, mass: float){
     const vector =(contactPoint.cross(normal)).asArray()
+    console.log("DEBUG: vector: ", vector)
     const firstMultp = [0, 0, 0]
     const matrix = invertedIneratiaMatrix(radius, mass).asArray()
     for (let i = 0; i < 3; i++) {
@@ -60,21 +71,31 @@ function lambda(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distan
         }
       }
     const result = (firstMultp[0] * vector[0] + firstMultp[1] * vector[1] + firstMultp[2] * vector[3])
-      
+    console.log("DEBUG: result: ", result)
     const lamda = (distance) / ((1 / mass) + result) 
+    console.log("DEBUG: lamda: ", lamda)
     return lamda
 }
 
-function cDelta(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distance: float, radius: float, mass: float) : Vector3{
+export function cDelta(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distance: float, radius: float, mass: float) : Vector3{
     const factor = ((1/mass)*lambda(movingMesh, contactPoint, normal, distance, radius, mass))
     return normal.multiply(new Vector3(factor, factor, factor))
 }
 
-function qDelta(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distance: float, radius: float, mass: float){
+export function qDelta(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distance: float, radius: float, mass: float){
 const lambaTimesInverse = invertedIneratiaMatrix(radius, mass).scale(lambda(movingMesh, contactPoint, normal, distance, radius, mass))
+console.log("DEBUG: lambaTimesInverse: ", lambaTimesInverse)
 const radiusCrossNormal = contactPoint.cross(normal)
+console.log("DEBUG: radiusCrossNormal: ", radiusCrossNormal)
 const quaterionChange = multiplyMatrix3x3WithVector3(lambaTimesInverse, radiusCrossNormal).scale(1/2)
+// Momentanes Quaterion vom Mesh
+console.log("DEBUG: quaternionChange: ", quaterionChange)
+const currentQuaterion = movingMesh.rotationQuaternion as Quaternion
+const quaterionChangeCast = new Quaternion(quaterionChange.x, quaterionChange.y, quaterionChange.z, 0)
+// Mutliplikation von Quaterionen
+// Dabei Skalarkomponente ist hier die 4te Komponente, und 0 da wir von Vektor3 umwandeln
+const newQuaterion = currentQuaterion.multiply(quaterionChangeCast)
 
 //return (0, quaterionChange) 
-return null
+return newQuaterion
 }

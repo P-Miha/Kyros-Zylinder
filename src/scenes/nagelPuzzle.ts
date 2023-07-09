@@ -18,7 +18,7 @@ import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
 import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint } from "../nagelDistanceField";
-import { distanceAndOriantationDelta } from "../contactForce";
+import { cDelta, qDelta, calculateBoundingBoxDiagonalLength } from "../contactForce";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
@@ -241,7 +241,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // eslint-disable-next-line no-constant-condition
         // if (true){
             collided.push(currentPunkt.absolutePosition);
-            //console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
+        
             // Update Arrow mit Collisionsposition und Normalenvektor
             const normalVector = normals[0];
             arrow.position = currentPunkt.absolutePosition;
@@ -251,6 +251,18 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             const target = arrow.position.add(transformedNormal);
             arrow.lookAt(target);
             hl.addMesh(arrow, Color3.Red())
+
+            // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
+            const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
+            const positionOffset = cDelta(nagelPuzzleMoveable, currentPunkt.absolutePosition, normalVector, distance, radius, 1);
+            const orientationOffset = qDelta(nagelPuzzleMoveable, currentPunkt.absolutePosition, normalVector, distance, radius, 1);
+            // Berechne neue Position und Orientierung
+            const newPosition = currentPunkt.absolutePosition.add(positionOffset);
+            const currentOrientation = nagelPuzzleMoveable.rotationQuaternion as Quaternion;
+            const newOrientation = orientationOffset.add(currentOrientation);
+            // Setze neue Position und Orientierung
+            nagelPuzzleMoveable.position = newPosition;
+            nagelPuzzleMoveable.rotationQuaternion = newOrientation;
         }
     
         if (collided.length == 0) {
