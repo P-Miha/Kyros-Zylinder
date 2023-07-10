@@ -92,7 +92,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             punkt.visibility = 1;
         }
         // Drehe Moveable Mesh um 180°
-        nagelPuzzleMoveable.rotation = new Vector3(0, Math.PI, 0);
+        nagelPuzzleMoveable.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(0, Math.PI, 0));
 
 
         // Erstelle Kugelmesh
@@ -254,7 +254,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
             // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
             const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
-            const positionOffset = cDelta(nagelPuzzleMoveable, currentPunkt.absolutePosition, normalVector, distance, radius, 1);
+            const positionOffset = cDelta(nagelPuzzleMoveable, currentPunkt.position, normalVector, distance, radius, 1);
             const orientationOffset = qDelta(nagelPuzzleMoveable, currentPunkt.absolutePosition, normalVector, distance, radius, 1);
             // Berechne neue Position und Orientierung
             const newPosition = currentPunkt.absolutePosition.add(positionOffset);
