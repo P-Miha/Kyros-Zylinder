@@ -12,10 +12,10 @@ function multiplyMatrix3x3WithVector3(matrix: Matrix, vector: Vector3): Vector3 
   const result = new Vector3();
 
   result.x = matrix.m[0] * vector.x + matrix.m[1] * vector.y + matrix.m[2] * vector.z;
-  result.y = matrix.m[4] * vector.x + matrix.m[5] * vector.y + matrix.m[6] * vector.z;
-  result.z = matrix.m[8] * vector.x + matrix.m[9] * vector.y + matrix.m[10] * vector.z;
+  result.y = matrix.m[3] * vector.x + matrix.m[4] * vector.y + matrix.m[5] * vector.z;
+  result.z = matrix.m[6] * vector.x + matrix.m[7] * vector.y + matrix.m[8] * vector.z;
 
-  return result;
+  return result;    
 }
 
 /**
@@ -42,7 +42,7 @@ export function inertiaMatrix(radius: float, mass: float): Matrix {
 
 export function invertedIneratiaMatrix(radius: float, mass: float): Matrix {
     const inertia: float = 5 /( 2 * mass * radius * radius);
-    const values = [inertia, 0, 0,
+    const values = [inertia, 0, 0, 
                     0, inertia, 0,
                     0, 0, inertia];
     console.log("DEBUG: inertiaMatrix: ", Matrix.FromArray(values))
@@ -70,7 +70,8 @@ function lambda(movingMesh: Mesh, contactPoint: Vector3, normal: Vector3, distan
             firstMultp[i] += vector[j] * matrix[j * 3 + i];
         }
       }
-    const result = (firstMultp[0] * vector[0] + firstMultp[1] * vector[1] + firstMultp[2] * vector[3])
+    console.log("DEBUG: firstMultp: ", firstMultp)
+    const result = (firstMultp[0] * vector[0] + firstMultp[1] * vector[1] + firstMultp[2] * vector[2])
     console.log("DEBUG: result: ", result)
     const lamda = (distance) / ((1 / mass) + result) 
     console.log("DEBUG: lamda: ", lamda)
