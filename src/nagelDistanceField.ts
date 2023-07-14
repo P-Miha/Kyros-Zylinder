@@ -4,8 +4,8 @@ import { SDFData } from "./sdfParser";
 
 
 export function index2(x: int, y: int, z: int, resolution: Vector3): number {
-    console.log("Index " , x + resolution.x*(y + resolution.y*z))
-    return x + resolution.x*(y + resolution.y*z)};
+    //console.log("Index " , x + resolution.x*(y + resolution.y*z))
+    return x + resolution.x*(y + resolution.y*z)}
 
 export function index(point: Vector3, sdfFile: SDFData): number{
     const o = sdfFile.bbox.min;
@@ -57,7 +57,7 @@ export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
 
 export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFData): number {
     const localPoint = calculateLocalPoint(point, mesh);
-    const gitterPoint = pointFunction(localPoint.x, localPoint.y, localPoint.z, sdfFile)
+    //const gitterPoint = pointFunction(localPoint.x, localPoint.y, localPoint.z, sdfFile)
     // console.log("Localpoint: " ,localPoint)
     // console.log("Gitterpoint: " ,gitterPoint)
     const indexofPoint = index(localPoint, sdfFile);

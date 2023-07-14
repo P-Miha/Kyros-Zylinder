@@ -18,7 +18,7 @@ import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
 import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint } from "../nagelDistanceField";
-import { cDelta, qDelta, calculateBoundingBoxDiagonalLength } from "../contactForce";
+import { cDelta, qDelta, calculateBoundingBoxDiagonalLength, ccDelta, qqDelta } from "../contactForce";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
@@ -59,7 +59,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         );
         const nagelPuzzleStatic = nagelPuzzleStaticLoad.meshes[0] as Mesh;
 
-
+        // Scale z Axis mit -1 um Koordinatensystem an Babylon's anzupassen
         nagelPuzzleStatic.scaling = new Vector3(1, 1, -1);
 
         const nagelPuzzleMoveableLoad = await SceneLoader.ImportMeshAsync(
@@ -74,6 +74,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const nagelPuzzleMoveable = nagelPuzzleMoveableLoad.meshes[0] as Mesh;
         nagelPuzzleMoveable.name = "NagelPuzzleMoveable";
         nagelPuzzleMoveable.visibility = 1;
+        // Scale z Axis mit -1 um Koordinatensystem an Babylon's anzupassen
+        nagelPuzzleMoveable.scaling = new Vector3(1, 1, -1);
+        nagelPuzzleMoveable.position = new Vector3(90, 0, 0);
         
         // Erstelle leere Mesh um die Punkte zu speichern
         // dabei sind die Punkte, die Punkte der Oberfläche des moveable Meshes
@@ -89,10 +92,10 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             const punkt = new Mesh("Punkt" + i, scene)
             punkt.position = punkte[i];
             punkt.parent = nagelPunkte;
-            punkt.visibility = 1;
+            punkt.visibility = 0;
         }
         // Drehe Moveable Mesh um 180°
-        nagelPuzzleMoveable.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(0, Math.PI, 0));
+        nagelPuzzleMoveable.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(Math.PI / 2, Math.PI, 0));
 
 
         // Erstelle Kugelmesh
@@ -232,43 +235,56 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
           }, scene);        
         // Checke erste 3 Punkte
         scene.onBeforeRenderObservable.add(() => { 
-        const collided = Array<Vector3>();
-        const currentPunkt = moveableNagelPunkte[0];
-        const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
-        console.log(distance)
-        // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
-         if (distance < 0 && distance != -1) {
-        // eslint-disable-next-line no-constant-condition
+        const currentPunkt = moveableNagelPunkte;
+        let distance = 1
+        let index = 0
+        for (let i = 0; i < moveableNagelPunkte.length; i++) {
+            // Schaue ob wir eine Kollision haben, und wenn ja, ob diese Tiefer drinne ist als unsere bereits gespeicherte
+            
+            const currentPointDistance = distanceToWorldpoint(currentPunkt[i].absolutePosition, nagelPuzzleStatic, sdfContent)
+            //Wenn wir keine debugvalue haben(-1) und die Distanz eine kollision wiederspiegelt (kleiner 0), speichere diese wenn diese tiefer ist als die bereits gespeicherte
+            if (currentPointDistance < distance && currentPointDistance != -1.0 && currentPointDistance < 0) {
+                console.log("KOLLISSION")
+                distance = currentPointDistance
+                index = i
+            }
+        }
+        // // eslint-disable-next-line no-constant-condition
         // if (true){
-            collided.push(currentPunkt.absolutePosition);
-        
-            // Update Arrow mit Collisionsposition und Normalenvektor
-            const normalVector = normals[0];
-            arrow.position = currentPunkt.absolutePosition;
+        if (distance > 0 ) {
+            nagelPuzzleStatic.material = noCollisionMaterial;
+        } else {
+            // Kollision, daher Material ändern
+            nagelPuzzleStatic.material = collisionMaterial;
+            // Starte cDelta und qDelta Berechnung
+            
 
-            const NagelPuzzleMoveableWorldMatrix = nagelPuzzleMoveable.getWorldMatrix();
-            const transformedNormal = Vector3.TransformNormal(normalVector, NagelPuzzleMoveableWorldMatrix);
-            const target = arrow.position.add(transformedNormal);
-            arrow.lookAt(target);
-            hl.addMesh(arrow, Color3.Red())
+            // Tiefster Punkt umgerechnet zum lokalen Koordinatensystem
+            const currentPoint = calculateLocalPoint(currentPunkt[index].absolutePosition, nagelPuzzleStatic);
+            // Momentaner Root Node des NagelPuzzles als Lokaler Punkt
+            const rootPoint = calculateLocalPoint(nagelPuzzleMoveable.absolutePosition, nagelPuzzleStatic);
+
+            // Invertiere Normalenvektor, da er in die andere Richtung zeigt als für die Berechnung benötigt
+            // ---> zu <-----
+            const normalVector = new Vector3(normals[index].x * -1, normals[index].y * -1, normals[index].z * -1);
+
+            // const NagelPuzzleMoveableWorldMatrix = nagelPuzzleMoveable.getWorldMatrix();
+            const transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveable.getWorldMatrix());
 
             // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
             const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
-            const positionOffset = cDelta(nagelPuzzleMoveable, currentPunkt.position, normalVector, distance, radius, 1);
-            const orientationOffset = qDelta(nagelPuzzleMoveable, currentPunkt.absolutePosition, normalVector, distance, radius, 1);
-            // Berechne neue Position und Orientierung
-            const newPosition = currentPunkt.absolutePosition.add(positionOffset);
+            //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
+            const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal);
+
+            // const orientationOffset = qDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
+            const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal, nagelPuzzleMoveable);
+            // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
+            const newPosition = currentPoint.add(positionOffset);
             const currentOrientation = nagelPuzzleMoveable.rotationQuaternion as Quaternion;
-            const newOrientation = orientationOffset.add(currentOrientation);
+            const newOrientation = currentOrientation.add(orientationOffset);
             // Setze neue Position und Orientierung
             nagelPuzzleMoveable.position = newPosition;
             nagelPuzzleMoveable.rotationQuaternion = newOrientation;
-        }
-    
-        if (collided.length == 0) {
-            nagelPuzzleStatic.material = noCollisionMaterial;
-        } else {
-            nagelPuzzleStatic.material = collisionMaterial;
         }
         });
 
