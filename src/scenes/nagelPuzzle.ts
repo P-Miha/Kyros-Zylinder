@@ -76,7 +76,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         nagelPuzzleMoveable.visibility = 1;
         // Scale z Axis mit -1 um Koordinatensystem an Babylon's anzupassen
         nagelPuzzleMoveable.scaling = new Vector3(1, 1, -1);
-        nagelPuzzleMoveable.position = new Vector3(90, 0, 0);
         
         // Erstelle leere Mesh um die Punkte zu speichern
         // dabei sind die Punkte, die Punkte der Oberfläche des moveable Meshes
@@ -86,6 +85,8 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const offInfo = parseOffFileContent(await punkteInfo);
         const punkte = offInfo.vertices
         const normals = offInfo.normals
+
+
         // Erstelle ein leeres Mesh an jeden dieser Punkte und parente diesen an nagelPunkte 
         // Vorerst sichbar 
         for (let i = 0; i < punkte.length; i++) {
@@ -94,18 +95,10 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             punkt.parent = nagelPunkte;
             punkt.visibility = 0;
         }
+        nagelPuzzleMoveable.position = new Vector3(-80, -10, 0);
+
         // Drehe Moveable Mesh um 180°
         nagelPuzzleMoveable.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(Math.PI / 2, Math.PI, 0));
-
-
-        // Erstelle Kugelmesh
-        const sphere2 = MeshBuilder.CreateSphere(
-            "sphere",
-            { diameter: 0.5 },
-            scene
-        );
-        sphere2.position = new Vector3(-5,0,2);
-        sphere2.visibility = 1;
   
         // Die URL der SDF-Datei
         const sdfFileUrl = 'https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.sdf';
@@ -113,18 +106,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // Laded die SDF-Datei aus dem Internet und Parset diese in ein SDFData-Objekt
         const loadFile = loadSDFFile(sdfFileUrl);
         const sdfContent = parseSDFFileContent(await loadFile);
-        // Sphere Test
-
-        // Sphere2 Test (inside)
-        // Point -> calculateLocalPoint -> index (-> index2)
-        // const calculatedPointinLocal2  = calculateLocalPoint(sphere2.absolutePosition, nagelPuzzleStatic)
-        // console.log("2: Spherelocation World: ", sphere2.absolutePosition, "2: Spherelocation Local: ", calculatedPointinLocal2)
-        // const temp2 = new Vector3(calculatedPointinLocal2.x, calculatedPointinLocal2.y, calculatedPointinLocal2.z * -1)
-        // const calculatedIndex2 = index(temp2, sdfContent);
-        // console.log("2: Index in SDF: ", calculatedIndex2)
-        // console.log("2: Distanze vom Punkt zum Mesh laut SDF: ", sdfContent.distances[calculatedIndex2])
-
-
+  
         //Print SDF-Data
         console.log("SDF-Data: ", sdfContent);
         
@@ -233,8 +215,8 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             tessellation: 16,
             updatable: true
           }, scene);        
-        // Checke erste 3 Punkte
-        scene.onBeforeRenderObservable.add(() => { 
+        // Checke Punkte
+        scene.onAfterRenderObservable.add(() => { 
         const currentPunkt = moveableNagelPunkte;
         let distance = 1
         let index = 0
@@ -258,32 +240,36 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             nagelPuzzleStatic.material = collisionMaterial;
             // Starte cDelta und qDelta Berechnung
             
-
             // Tiefster Punkt umgerechnet zum lokalen Koordinatensystem
-            const currentPoint = calculateLocalPoint(currentPunkt[index].absolutePosition, nagelPuzzleStatic);
+            const currentPoint = currentPunkt[index].absolutePosition
             // Momentaner Root Node des NagelPuzzles als Lokaler Punkt
-            const rootPoint = calculateLocalPoint(nagelPuzzleMoveable.absolutePosition, nagelPuzzleStatic);
+            const rootPoint = nagelPuzzleMoveable.absolutePosition;
 
             // Invertiere Normalenvektor, da er in die andere Richtung zeigt als für die Berechnung benötigt
             // ---> zu <-----
-            const normalVector = new Vector3(normals[index].x * -1, normals[index].y * -1, normals[index].z * -1);
+            const normalVector = new Vector3(normals[index].x, normals[index].y, normals[index].z);
 
             // const NagelPuzzleMoveableWorldMatrix = nagelPuzzleMoveable.getWorldMatrix();
-            const transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveable.getWorldMatrix());
+            let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveable.getWorldMatrix());
+            transformedNormal = transformedNormal.multiply(new Vector3(-1, -1, -1));
 
             // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
             const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
             //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
             const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal);
-
+            console.log("Offset: ", positionOffset)
+            console.log("CurrentPoint: ", currentPoint)
             // const orientationOffset = qDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
             const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal, nagelPuzzleMoveable);
             // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
-            const newPosition = currentPoint.add(positionOffset);
+
+            // const newPosition = currentPoint.add(positionOffset);
+            const newPosition = nagelPuzzleMoveable.absolutePosition.add(positionOffset);
+            console.log("NewPosition: ", newPosition)
             const currentOrientation = nagelPuzzleMoveable.rotationQuaternion as Quaternion;
             const newOrientation = currentOrientation.add(orientationOffset);
             // Setze neue Position und Orientierung
-            nagelPuzzleMoveable.position = newPosition;
+            nagelPuzzleMoveable.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
             nagelPuzzleMoveable.rotationQuaternion = newOrientation;
         }
         });
