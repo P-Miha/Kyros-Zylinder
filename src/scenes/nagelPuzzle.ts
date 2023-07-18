@@ -5,7 +5,7 @@ import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CreateGround } from "@babylonjs/core/Meshes/Builders/groundBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { CreateSceneClass } from "../createScene";
-import { BoundingInfo, Color3, HighlightLayer, Mesh, MeshBuilder, Nullable, SceneLoader, WebXRControllerComponent } from "@babylonjs/core";
+import { Axis, BoundingInfo, Color3, HighlightLayer, Mesh, MeshBuilder, Nullable, SceneLoader, WebXRControllerComponent } from "@babylonjs/core";
 // If you don't need the standard material you will still need to import it since the scene requires it.
 // import "@babylonjs/core/Materials/standardMaterial";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
@@ -270,35 +270,43 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         let distance = 1
         let index = 0
         // Controller Movement
-        if (isDragging) {
-            // Controller abrufen
-            const controller = xr.input.controllers.find((c) => c.inputSource.handedness === 'right');
-        
-            // Überprüfen, ob der Controller gefunden wurde und die Komponenten vorhanden sind
-            if (controller && controller.grip && controller.grip.position && controller.grip.rotationQuaternion) {
-              // Aktuelle Position und Rotation des Controllers abrufen
-              const currentPosition = controller.grip.position;
-              const currentRotation = controller.grip.rotationQuaternion;
-        
-              // Prüfen, ob die Position und Rotation definiert sind und der vorherige Status vorhanden ist
-              if (currentPosition && currentRotation && previousPosition && previousRotation) {
-                // Skalierung und Rotation des Ziel-Meshes berücksichtigen
-                const scaledPositionDelta = currentPosition.subtract(previousPosition).divide(targetMesh.scaling);
-                const scaledRotationDelta = currentRotation.multiply(previousRotation.conjugate());
-        
-                // Kombinieren der Rotation mit der geänderten Rotation des Ziel-Meshs
-                const targetRotation = targetMesh.rotationQuaternion!.multiply(scaledRotationDelta);
-        
-                // Ziel-Mesh transformieren
-                targetMesh.position.addInPlace(scaledPositionDelta);
-                targetMesh.rotationQuaternion = targetRotation;
-              }
-        
-              // Vorherigen Status aktualisieren
-              previousPosition = currentPosition.clone();
-              previousRotation = currentRotation.clone();
-            }
-          }
+ // Überprüfen, ob der Trigger gedrückt ist und "Dragging" aktiv ist
+ if (isDragging) {
+    // Controller abrufen
+    const controller = xr.input.controllers.find((c) => c.inputSource.handedness === 'right');
+
+    // Überprüfen, ob der Controller gefunden wurde und die Komponenten vorhanden sind
+    if (controller && controller.grip && controller.grip.position && controller.grip.rotationQuaternion) {
+      // Aktuelle Position und Rotation des Controllers abrufen
+      const currentPosition = controller.grip.position;
+      const currentRotation = controller.grip.rotationQuaternion;
+
+      // Prüfen, ob die Position und Rotation definiert sind und der vorherige Status vorhanden ist
+      if (currentPosition && currentRotation && previousPosition && previousRotation) {
+        // Skalierung und Rotation des Ziel-Meshes berücksichtigen
+        // const scaledPositionDelta = currentPosition.subtract(previousPosition).divide(targetMesh.scaling);
+
+    // Rotation des Controllers in das Koordinatensystem des Weltursprungs umwandeln
+    const worldOriginRotation = Quaternion.Identity();
+    const controllerRotation = worldOriginRotation.multiply(currentRotation).multiply(previousRotation.conjugate());
+
+    // Berechne die Änderung der Position und Rotation des Controllers im Vergleich zum vorherigen Frame
+    const positionDelta = currentPosition.subtract(previousPosition);
+    const rotationDelta = controllerRotation;
+
+    // Skalierung und Rotation des Ziel-Meshes berücksichtigen
+    const scaledPositionDelta = positionDelta.divide(targetMesh.scaling);
+
+    // Ziel-Mesh transformieren
+    targetMesh.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01)); // Skaliere die Bewegung nach Bedarf
+    targetMesh.rotationQuaternion!.multiplyInPlace(rotationDelta);
+    }
+
+      // Vorherigen Status aktualisieren
+      previousPosition = currentPosition.clone();
+      previousRotation = currentRotation.clone();
+    }
+  }
         
         // Controller Movement Ende
 
