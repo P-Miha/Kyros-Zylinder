@@ -18,13 +18,14 @@ import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
 import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint } from "../nagelDistanceField";
-import { cDelta, qDelta, calculateBoundingBoxDiagonalLength, ccDelta, qqDelta } from "../contactForce";
+import { calculateBoundingBoxDiagonalLength, ccDelta, qqDelta } from "../contactForce";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
 import { SDFData } from '../sdfParser';
 import { loadOffFile, parseOffFileContent } from '../offParser';
 import NagelPuzzleStatic from "../../assets/meshes/Nagel1.stl";
+import { AdvancedDynamicTexture, Button } from "@babylonjs/gui";
 
 
 
@@ -35,7 +36,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     ): Promise<Scene> => {
         // This creates a basic Babylon Scene object (non-mesh)
         const scene = new Scene(engine);
-
+        /*********************************************************
+         * Anzeigen von Debug-Layern
+         *********************************************************/
         void Promise.all([
             import("@babylonjs/core/Debug/debugLayer"),
             import("@babylonjs/inspector"),
@@ -47,6 +50,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 globalRoot: document.getElementById("#root") || undefined,
             });
         });
+        /*********************************************************
+         * Einlesen von SDF & OFF Datein, sowie loaden von Meshes und deren Properties 
+         *********************************************************/
         STLFileLoader.DO_NOT_ALTER_FILE_COORDINATES = true;
         // Import Nagel Puzzle Mesh via STL
         const nagelPuzzleStaticLoad = await SceneLoader.ImportMeshAsync(
@@ -137,16 +143,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // This attaches the camera to the canvas
         camera.attachControl(canvas, true);
 
-        // This creates a light, aiming 0,1,0 - to the sky (non-mesh)
-        // const light = new HemisphericLight(
-        //     "light",
-        //     new Vector3(0, 1, 0),
-        //     scene
-        // );
-
-        // // Default intensity is 1. Let's dim the light a small amount
-        // light.intensity = 0.7;
-
         // Our built-in 'ground' shape.
         const ground = CreateGround(
             "ground",
@@ -183,45 +179,43 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
         
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
-        // Checke jeden Frame ob die Kugel im Nagel ist
-        // scene.onBeforeRenderObservable.add(() => {
-        //     const collided = Array<Vector3>();
-        //     // Checke jeden Punkt von NagelPunkte ob die SDF Distanz kleiner als 0 ist
-        //     for (let i = 0; i < moveableNagelPunkte.length; i++) {
-        //         const currentPunkt = moveableNagelPunkte[i];
-        //         const distance = distanceToWorldpoint(currentPunkt.absolutePosition, nagelPuzzleStatic, sdfContent)
-        //         // Wenn Distanz = -1 ist, ist der Punkt nicht in der SDF, daher ignorieren
-        //         if (distance < 0 && distance != -1.0) {
-        //             collided.push(currentPunkt.absolutePosition);
-        //             //console.log("Collision mit Punkt", currentPunkt.absolutePosition, " and NormalVector: ", distanceAndOriantationDelta(currentPunkt.absolutePosition, sdfContent))
-        //         }
-        //     }
-        //     if (collided.length == 0) {
-        //         nagelPuzzleStatic.material = noCollisionMaterial;
-        //     } else {
-        //         nagelPuzzleStatic.material = collisionMaterial;
-        //     }
-        // }
-        // );
-       
-        // DEBUG 
-        // const sphere = MeshBuilder.CreateSphere(
-        //     "sphere",
-        //     { diameter: 1 },
-        //     scene
-        // );
-        // sphere.position = moveableNagelPunkte[0].absolutePosition;
-        // const hl = new HighlightLayer("hl1", scene);
-        // hl.addMesh(sphere, Color3.Green());
-        // Erstelle Pfeil
-        // const direction = new Vector3(0, 0, 1);
-        // const arrow = MeshBuilder.CreateTube('arrow', {
-        //     path: [new Vector3(0, 0, 0), direction.scale(2)],
-        //     radius: 0.05,
-        //     tessellation: 16,
-        //     updatable: true
-        //   }, scene);      
-          
+        /************************************************************
+         * GUI-Interface zum setzen der Kollisionsvariable zum Debug
+         *************************************************************/
+        // Button Textur & Properties
+        const advancedTexture = AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        const button = Button.CreateSimpleButton("toggleCollisionCorrection", "Toggle Collision Correction");
+        button.width = "150px";
+        button.height = "40px";
+        button.background = "red"; // Startzustand
+        button.color = "white";
+        button.left = "35%"; 
+        button.top = "-45%"; 
+
+        // Var für Kollisionsabfrage
+        let collisionCorrectionEnabled = false;
+        
+        // Funktion für den Button
+        function toggleCollisionCorrection() {
+            collisionCorrectionEnabled = !collisionCorrectionEnabled;
+            // Update Button-Background
+            if (collisionCorrectionEnabled) {
+                button.background = "green";
+            } else {
+                button.background = "red";
+            }
+        }
+        // Button Event-Handler
+        button.onPointerClickObservable.add(() => {
+            toggleCollisionCorrection();
+        })
+        // Hinzufügen vom Button zur GUI-Texture
+        advancedTexture.addControl(button);
+
+
+        /*********************************************************
+         * VR Implementation (Variablen sowie Event-Handler für den Controller) 
+         *********************************************************/
         // VR-Integration, "WebXR"
         const xr = await scene.createDefaultXRExperienceAsync({ floorMeshes: [ground] });
 
@@ -263,53 +257,59 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         }
         });        
 
-
+        /*******************************************************************
+         * Each Frame Check: (2)Beinhaltet Kollisionserkennung und behebung
+         *                   (1)sowie das Bewegen des Moveable Meshes durch VR
+         *******************************************************************/
+        // (1)
         // Checke Punkte per Frame
         scene.onBeforeRenderObservable.add(() => { 
         const currentPunkt = moveableNagelPunkte;
         let distance = 1
         let index = 0
         // Controller Movement
- // Überprüfen, ob der Trigger gedrückt ist und "Dragging" aktiv ist
- if (isDragging) {
-    // Controller abrufen
-    const controller = xr.input.controllers.find((c) => c.inputSource.handedness === 'right');
+        // Überprüfen, ob der Trigger gedrückt ist und "Dragging" aktiv ist
+        if (isDragging) {
+            // Controller abrufen
+            const controller = xr.input.controllers.find((c) => c.inputSource.handedness === 'right');
 
-    // Überprüfen, ob der Controller gefunden wurde und die Komponenten vorhanden sind
-    if (controller && controller.grip && controller.grip.position && controller.grip.rotationQuaternion) {
-      // Aktuelle Position und Rotation des Controllers abrufen
-      const currentPosition = controller.grip.position;
-      const currentRotation = controller.grip.rotationQuaternion;
+            // Überprüfen, ob der Controller gefunden wurde und die Komponenten vorhanden sind
+            if (controller && controller.grip && controller.grip.position && controller.grip.rotationQuaternion) {
+            // Aktuelle Position und Rotation des Controllers abrufen
+            const currentPosition = controller.grip.position;
+            const currentRotation = controller.grip.rotationQuaternion;
 
-      // Prüfen, ob die Position und Rotation definiert sind und der vorherige Status vorhanden ist
-      if (currentPosition && currentRotation && previousPosition && previousRotation) {
-        // Skalierung und Rotation des Ziel-Meshes berücksichtigen
-        // const scaledPositionDelta = currentPosition.subtract(previousPosition).divide(targetMesh.scaling);
+            // Prüfen, ob die Position und Rotation definiert sind und der vorherige Status vorhanden ist
+            if (currentPosition && currentRotation && previousPosition && previousRotation) {
+                // Skalierung und Rotation des Ziel-Meshes berücksichtigen
+                // const scaledPositionDelta = currentPosition.subtract(previousPosition).divide(targetMesh.scaling);
 
-    // Rotation des Controllers in das Koordinatensystem des Weltursprungs umwandeln
-    const worldOriginRotation = Quaternion.Identity();
-    const controllerRotation = worldOriginRotation.multiply(currentRotation).multiply(previousRotation.conjugate());
+            // Rotation des Controllers in das Koordinatensystem des Weltursprungs umwandeln
+            const worldOriginRotation = Quaternion.Identity();
+            const controllerRotation = worldOriginRotation.multiply(currentRotation).multiply(previousRotation.conjugate());
 
-    // Berechne die Änderung der Position und Rotation des Controllers im Vergleich zum vorherigen Frame
-    const positionDelta = currentPosition.subtract(previousPosition);
-    const rotationDelta = controllerRotation;
+            // Berechne die Änderung der Position und Rotation des Controllers im Vergleich zum vorherigen Frame
+            const positionDelta = currentPosition.subtract(previousPosition);
+            const rotationDelta = controllerRotation;
 
-    // Skalierung und Rotation des Ziel-Meshes berücksichtigen
-    const scaledPositionDelta = positionDelta.divide(targetMesh.scaling);
+            // Skalierung und Rotation des Ziel-Meshes berücksichtigen
+            const scaledPositionDelta = positionDelta.divide(targetMesh.scaling);
 
-    // Ziel-Mesh transformieren
-    targetMesh.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01)); // Skaliere die Bewegung nach Bedarf
-    targetMesh.rotationQuaternion!.multiplyInPlace(rotationDelta);
+            // Ziel-Mesh transformieren
+            targetMesh.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01)); // Skaliere die Bewegung nach Bedarf
+            targetMesh.rotationQuaternion!.multiplyInPlace(rotationDelta);
+            }
+
+        // Vorherigen Status aktualisieren
+        previousPosition = currentPosition.clone();
+        previousRotation = currentRotation.clone();
+        }
     }
-
-      // Vorherigen Status aktualisieren
-      previousPosition = currentPosition.clone();
-      previousRotation = currentRotation.clone();
-    }
-  }
         
         // Controller Movement Ende
-
+        /**********************************************************************
+         * Kollisionsabfrage und Behebung (2)
+        **********************************************************************/
         for (let i = 0; i < moveableNagelPunkte.length; i++) {
             // Schaue ob wir eine Kollision haben, und wenn ja, ob diese Tiefer drinne ist als unsere bereits gespeicherte
             
@@ -328,39 +328,46 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         } else {
             // Kollision, daher Material ändern
             nagelPuzzleStatic.material = collisionMaterial;
-            // Starte cDelta und qDelta Berechnung
-            
-            // Tiefster Punkt umgerechnet zum lokalen Koordinatensystem
-            const currentPoint = currentPunkt[index].absolutePosition
-            // Momentaner Root Node des NagelPuzzles als Lokaler Punkt
-            const rootPoint = nagelPuzzleMoveable.absolutePosition;
+            // An-Aus Steuerbar über Button
+            if(collisionCorrectionEnabled){
+                // Starte cDelta und qDelta Berechnung
+                // Tiefster Punkt umgerechnet zum lokalen Koordinatensystem
+                const currentPoint = currentPunkt[index].absolutePosition
+                // Momentaner Root Node des NagelPuzzles als Lokaler Punkt
+                const rootPoint = nagelPuzzleMoveable.absolutePosition;
 
-            // Invertiere Normalenvektor, da er in die andere Richtung zeigt als für die Berechnung benötigt
-            // ---> zu <-----
-            const normalVector = new Vector3(normals[index].x, normals[index].y, normals[index].z);
+                // Invertiere Normalenvektor, da er in die andere Richtung zeigt als für die Berechnung benötigt
+                // ---> zu <-----
+                const normalVector = new Vector3(normals[index].x, normals[index].y, normals[index].z);
+                let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveable.getWorldMatrix());
+                transformedNormal = transformedNormal.multiply(new Vector3(-1, -1, -1));
+                console.log(transformedNormal)
 
-            // const NagelPuzzleMoveableWorldMatrix = nagelPuzzleMoveable.getWorldMatrix();
-            let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveable.getWorldMatrix());
-            transformedNormal = transformedNormal.multiply(new Vector3(-1, -1, -1));
+                // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
+                const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
+                //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
+                const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal);
 
-            // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
-            const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
-            //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
-            const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal);
-            console.log("Offset: ", positionOffset)
-            console.log("CurrentPoint: ", currentPoint)
-            // const orientationOffset = qDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
-            const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal, nagelPuzzleMoveable);
-            // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
+                const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal, nagelPuzzleMoveable);
+                // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
 
-            // const newPosition = currentPoint.add(positionOffset);
-            const newPosition = nagelPuzzleMoveable.absolutePosition.add(positionOffset);
-            console.log("NewPosition: ", newPosition)
-            const currentOrientation = nagelPuzzleMoveable.rotationQuaternion as Quaternion;
-            const newOrientation = currentOrientation.add(orientationOffset);
-            // Setze neue Position und Orientierung
-            nagelPuzzleMoveable.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
-            nagelPuzzleMoveable.rotationQuaternion = newOrientation;
+                const newPosition = nagelPuzzleMoveable.absolutePosition.add(positionOffset);
+                console.log("CurrentPosition: ", nagelPuzzleMoveable.absolutePosition)
+                console.log("PositionOffset: ", positionOffset)
+                console.log("NewPosition: ", newPosition)
+
+                const currentOrientation = nagelPuzzleMoveable.rotationQuaternion as Quaternion;
+                // console.log("CurrentOrientation: ", currentOrientation)
+                // console.log("OrientationOffset: ", orientationOffset)
+                // console.log("NewOrientation: ", currentOrientation.add(orientationOffset))
+                const newOrientation = (currentOrientation.add(orientationOffset));
+
+                // Setze neue Position und Orientierung
+                // Orientierung zuerst, da diese die Position eventuell beeinflusst,
+                // dannach Position um die geänderte Position von der Rotation zu überschreiben
+                nagelPuzzleMoveable.rotationQuaternion = newOrientation;
+                nagelPuzzleMoveable.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
+        }
         }
         });
 
