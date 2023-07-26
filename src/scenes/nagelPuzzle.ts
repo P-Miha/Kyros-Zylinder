@@ -50,12 +50,43 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 globalRoot: document.getElementById("#root") || undefined,
             });
         });
+
+        /**
+         * Berechnet den Mittelpunkt eines Meshes, um diesen zum Pivotverschiebung zu nutzen
+         * @param mesh 
+         * @returns centerpoint in global coordinates
+         */
+        function calculateCenter(mesh: Mesh): Vector3 {
+            const boundingInfo = mesh.getBoundingInfo();
+            const boundingBox = boundingInfo.boundingBox;
+            const center = boundingBox.center;
+            console.log("Center: ", center)
+            return center;
+        }
+
         /*********************************************************
          * Einlesen von SDF & OFF Datein, sowie loaden von Meshes und deren Properties 
          *********************************************************/
         STLFileLoader.DO_NOT_ALTER_FILE_COORDINATES = true;
+        /*******************************************************************
+         * Neue Implementations-Idee:
+         * Anstatt einfach zu Skalieren nutzen wir 2 paar Meshes
+         * 1. Paar: Nicht Skalierte Meshes (moveable & Static) mit welche wir Berechnungen
+         *          und Kollisionsabfragen und erkennung durchführen
+         * 2. Paar: Skalierte Meshes (moveable & Static) welche wir zur Darstellung nutzen
+         * 
+         * Dabei wird das 1. Paar als Hidden Meshes gesetzt und das 2. Paar als Visible
+         * 2te Paar wird geparented an das 1te Paar um die Positionen und Rotationen zu übernehmen
+         * evnt muss dies "manuell" gemacht werden, da die Skalierung auch auf die bewegte Strecke
+         * angewendet werden muss.
+         *******************************************************************/
         // Import Nagel Puzzle Mesh via STL
-        const nagelPuzzleStaticLoad = await SceneLoader.ImportMeshAsync(
+        
+        // Visible wird zur Darstellung genutzt und runter skaliert
+        // Hidden wird für die Kollisionsabfrage genutzt und bleibt in Originalgröße
+        
+        // Visible:
+        const nagelPuzzleStaticLoadVisible = await SceneLoader.ImportMeshAsync(
             "",
             "",
             NagelPuzzleStatic,
@@ -63,12 +94,27 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             undefined,
             ".stl"
         );
-        const nagelPuzzleStatic = nagelPuzzleStaticLoad.meshes[0] as Mesh;
+
+        const nagelPuzzleStaticVisible = nagelPuzzleStaticLoadVisible.meshes[0] as Mesh;
+
+        // Hidden: 
+        const nagelPuzzleStaticLoadVisibleHidden = await SceneLoader.ImportMeshAsync(
+            "",
+            "",
+            NagelPuzzleStatic,
+            scene, 
+            undefined,
+            ".stl"
+        );
+        const nagelPuzzleStaticHidden = nagelPuzzleStaticLoadVisibleHidden.meshes[0] as Mesh;
 
         // Scale z Axis mit -1 um Koordinatensystem an Babylon's anzupassen
-        nagelPuzzleStatic.scaling = new Vector3(1, 1, -1);
+        // nagelPuzzleStatic.scaling = new Vector3(1, 1, -1);
 
-        const nagelPuzzleMoveableLoad = await SceneLoader.ImportMeshAsync(
+        // Visible wird zur Darstellung genutzt und runter skaliert
+        // Hidden wird für die Kollisionsabfrage genutzt und bleibt in Originalgröße
+        // Visible:
+        const nagelPuzzleMoveableLoadVisible = await SceneLoader.ImportMeshAsync(
             "",
             "",
             NagelPuzzleStatic,
@@ -77,41 +123,78 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             ".stl"
             
         );
-        const nagelPuzzleMoveable = nagelPuzzleMoveableLoad.meshes[0] as Mesh;
-        nagelPuzzleMoveable.name = "NagelPuzzleMoveable";
-        nagelPuzzleMoveable.visibility = 1;
-        // Scale z Axis mit -1 um Koordinatensystem an Babylon's anzupassen
-        nagelPuzzleMoveable.scaling = new Vector3(1, 1, -1);
         
+        const nagelPuzzleMoveableVisible = nagelPuzzleMoveableLoadVisible.meshes[0] as Mesh;
+        nagelPuzzleMoveableVisible.name = "MoveableVisible";
+        nagelPuzzleMoveableVisible.visibility = 1;
+        // Scale z Axis mit -1 um Koordinatensystem an Babylon's anzupassen
+        //nagelPuzzleMoveableVisible.scaling = new Vector3(1, 1, 1);
+
+        // Hidden:
+        const nagelPuzzleMoveableLoadHidden = await SceneLoader.ImportMeshAsync(
+            "",
+            "",
+            NagelPuzzleStatic,
+            scene,
+            undefined,
+            ".stl"
+            
+        );
+        const nagelPuzzleMoveableHidden = nagelPuzzleMoveableLoadHidden.meshes[0] as Mesh;
+        nagelPuzzleMoveableHidden.name = "MoveableHidden";
+        nagelPuzzleMoveableHidden.visibility = 1; // Temp visible for Debugging
+        
+
+
         // Erstelle leere Mesh um die Punkte zu speichern
         // dabei sind die Punkte, die Punkte der Oberfläche des moveable Meshes
+        // Hierachie von Kind zu Parent Notiert: nagelPuzzleMoveableHidden <- nagelPunkte <-- Punkt0, Punkt1, Punkt2,
         const nagelPunkte = new Mesh("NagelPunkte", scene);
-        nagelPunkte.parent = nagelPuzzleMoveableLoad.meshes[0];
+        nagelPunkte.parent = nagelPuzzleMoveableHidden;
         const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.noff");
         const offInfo = parseOffFileContent(await punkteInfo);
         const punkte = offInfo.vertices
         const normals = offInfo.normals
 
 
-        // Erstelle ein leeres Mesh an jeden dieser Punkte und parente diesen an nagelPunkte 
-        // Vorerst sichbar 
+        // Erstelle ein leeres Mesh an jeden dieser Punkte und parente diesen an nagelPunkte  
         for (let i = 0; i < punkte.length; i++) {
             const punkt = new Mesh("Punkt" + i, scene)
             punkt.position = punkte[i];
             punkt.parent = nagelPunkte;
             punkt.visibility = 0;
         }
-        nagelPuzzleMoveable.position = new Vector3(-0.5, 1, 0);
-        nagelPuzzleStatic.position = new Vector3(0, 1, 0);
+        //nagelPuzzleMoveableVisible.position = new Vector3(-0.5, 1, 0); // Wird von Renderloop überschrieben
+        nagelPuzzleStaticVisible.position = new Vector3(0, 0, 0);
 
         // Drehe Moveable Mesh um 180°
-        nagelPuzzleMoveable.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(Math.PI / 2, Math.PI, 0));
+        nagelPuzzleMoveableVisible.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(Math.PI / 2, Math.PI, 0));
+        nagelPuzzleMoveableHidden.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(Math.PI / 2, Math.PI, 0));
+
 
         // Scaling der Meshe für WebXr
-        nagelPuzzleMoveable.scaling = new Vector3(0.01, 0.01, 0.01);
-        nagelPuzzleStatic.scaling = new Vector3(0.01, 0.01, 0.01);
+        nagelPuzzleMoveableVisible.scaling = new Vector3(0.01, 0.01, 0.01);
+        nagelPuzzleStaticVisible.scaling = new Vector3(0.01, 0.01, 0.01);
 
-  
+        // let temp = nagelPuzzleMoveableHidden.absolutePosition;
+        nagelPuzzleMoveableHidden.setPivotPoint(calculateCenter(nagelPuzzleMoveableHidden));
+        // nagelPuzzleMoveableHidden.position = temp;
+
+        // temp = nagelPuzzleMoveableVisible.position;
+        nagelPuzzleMoveableVisible.setPivotPoint(calculateCenter(nagelPuzzleMoveableVisible));
+        // nagelPuzzleMoveableVisible.position = temp  
+
+        // temp = nagelPuzzleStaticVisible.position;
+        nagelPuzzleStaticHidden.setPivotPoint(calculateCenter(nagelPuzzleStaticHidden));
+        // nagelPuzzleStaticHidden.position = temp;
+
+        // temp = nagelPuzzleStaticVisible.position;
+        nagelPuzzleStaticVisible.setPivotPoint(calculateCenter(nagelPuzzleStaticVisible));
+        // nagelPuzzleStaticVisible.position = temp
+        
+        // Fix positioning
+        nagelPuzzleMoveableVisible.position = new Vector3(-41, -11, -5);
+
         // Die URL der SDF-Datei
         const sdfFileUrl = 'https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.sdf';
         // Definiert in einer ausgelagerten Datei
@@ -149,7 +232,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             { width: 6, height: 6 },
             scene
         );
-
+        ground.position.y = -0.5;
         // Load a texture to be used as the ground material
         const groundMaterial = new StandardMaterial("ground material", scene);
         groundMaterial.diffuseTexture = new Texture(grassTextureUrl, scene);
@@ -179,6 +262,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         noCollisionMaterial.diffuseColor = new Color3(0, 1, 0);
         
         const moveableNagelPunkte = nagelPunkte.getChildMeshes()
+
         /************************************************************
          * GUI-Interface zum setzen der Kollisionsvariable zum Debug
          *************************************************************/
@@ -222,7 +306,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // XR-Sitzung abrufen
         const xrSession = xr.baseExperience.sessionManager.session;
         
-        const targetMesh = nagelPuzzleMoveable; // Hier musst du den Code zum Erstellen oder Laden deines Ziel-Meshs einfügen
+        const targetMesh = nagelPuzzleMoveableVisible;
 
         // Vorherigen Status des Controllers speichern
         let previousPosition: Nullable<Vector3> = null;
@@ -313,7 +397,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         for (let i = 0; i < moveableNagelPunkte.length; i++) {
             // Schaue ob wir eine Kollision haben, und wenn ja, ob diese Tiefer drinne ist als unsere bereits gespeicherte
             
-            const currentPointDistance = distanceToWorldpoint(currentPunkt[i].absolutePosition, nagelPuzzleStatic, sdfContent)
+            const currentPointDistance = distanceToWorldpoint(currentPunkt[i].absolutePosition, nagelPuzzleStaticVisible, sdfContent)
             //Wenn wir keine debugvalue haben(-1) und die Distanz eine kollision wiederspiegelt (kleiner 0), speichere diese wenn diese tiefer ist als die bereits gespeicherte
             if (currentPointDistance < distance && currentPointDistance != -1.0 && currentPointDistance < 0) {
                 console.log("KOLLISSION")
@@ -324,39 +408,39 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // // eslint-disable-next-line no-constant-condition
         // if (true){
         if (distance > 0 ) {
-            nagelPuzzleStatic.material = noCollisionMaterial;
+            nagelPuzzleStaticVisible.material = noCollisionMaterial;
         } else {
             // Kollision, daher Material ändern
-            nagelPuzzleStatic.material = collisionMaterial;
+            nagelPuzzleStaticVisible.material = collisionMaterial;
             // An-Aus Steuerbar über Button
             if(collisionCorrectionEnabled){
                 // Starte cDelta und qDelta Berechnung
                 // Tiefster Punkt umgerechnet zum lokalen Koordinatensystem
                 const currentPoint = currentPunkt[index].absolutePosition
                 // Momentaner Root Node des NagelPuzzles als Lokaler Punkt
-                const rootPoint = nagelPuzzleMoveable.absolutePosition;
+                const rootPoint = nagelPuzzleMoveableVisible.absolutePosition;
 
                 // Invertiere Normalenvektor, da er in die andere Richtung zeigt als für die Berechnung benötigt
                 // ---> zu <-----
                 const normalVector = new Vector3(normals[index].x, normals[index].y, normals[index].z);
-                let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveable.getWorldMatrix());
+                let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveableVisible.getWorldMatrix());
                 transformedNormal = transformedNormal.multiply(new Vector3(-1, -1, -1));
                 console.log(transformedNormal)
 
                 // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
                 const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
                 //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
-                const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal);
+                const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStaticVisible, transformedNormal);
 
-                const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStatic, transformedNormal, nagelPuzzleMoveable);
+                const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, currentPoint, rootPoint, nagelPuzzleStaticVisible, transformedNormal, nagelPuzzleMoveableVisible);
                 // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
 
-                const newPosition = nagelPuzzleMoveable.absolutePosition.add(positionOffset);
-                console.log("CurrentPosition: ", nagelPuzzleMoveable.absolutePosition)
+                const newPosition = nagelPuzzleMoveableVisible.absolutePosition.add(positionOffset);
+                console.log("CurrentPosition: ", nagelPuzzleMoveableVisible.absolutePosition)
                 console.log("PositionOffset: ", positionOffset)
                 console.log("NewPosition: ", newPosition)
 
-                const currentOrientation = nagelPuzzleMoveable.rotationQuaternion as Quaternion;
+                const currentOrientation = nagelPuzzleMoveableVisible.rotationQuaternion as Quaternion;
                 // console.log("CurrentOrientation: ", currentOrientation)
                 // console.log("OrientationOffset: ", orientationOffset)
                 // console.log("NewOrientation: ", currentOrientation.add(orientationOffset))
@@ -365,11 +449,15 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 // Setze neue Position und Orientierung
                 // Orientierung zuerst, da diese die Position eventuell beeinflusst,
                 // dannach Position um die geänderte Position von der Rotation zu überschreiben
-                nagelPuzzleMoveable.rotationQuaternion = newOrientation;
-                nagelPuzzleMoveable.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
+                nagelPuzzleMoveableVisible.rotationQuaternion = newOrientation;
+                nagelPuzzleMoveableVisible.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
         }
-        }
-        });
+    }
+    // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
+    nagelPuzzleMoveableVisible.position = (nagelPuzzleMoveableHidden.position).multiply(nagelPuzzleMoveableVisible.scaling);
+    nagelPuzzleMoveableVisible.rotationQuaternion = nagelPuzzleMoveableHidden.rotationQuaternion;
+}) // Ende onBeforeRenderObservable
+        ;
 
         return scene;
     };

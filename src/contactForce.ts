@@ -60,14 +60,14 @@ export function localRadius(contactPoint: Vector3, rootPoint: Vector3, staticMes
 
 export function lambdaAlt(minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, normalVector: Vector3, distance: float){
     // Diagonale Berechnen und ^2
-    const g = Math.pow(maxBox.subtract(minBox).length(), 2) / 2
+    const g = maxBox.subtract(minBox).length() / 2
     // r ist der Abstand des Kontaktpunktes zum Schwerpunkts-mittelpunkt da wir vom Center als Schwerpunkt ausgehen ist der Vektor: R - Schwerpunkt, mit schwerpunkt = 0,0,0 => R
     const r = contactPoint
     // NormalenVektor muss umgedreht werden, da er momentan in Kollisionsrichtung zeigt
     // const n = normalVector.scale(-1)
     const n = new Vector3(normalVector.x, normalVector.y, normalVector.z)
 
-    return (distance * scaling) / (1 + (5 / (2 * g)) * Math.pow((r.cross(n)).length(), 2)) 
+    return (distance * scaling) / (1 + (5 / (2 * Math.pow(g, 2))) * Math.pow((r.cross(n)).length(), 2)) 
 }
 export function ccDelta(distance: float, minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh, normalVector: Vector3){
     const lambda = lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance)
@@ -84,9 +84,9 @@ export function qqDelta(distance: float, minBox: Vector3, maxBox: Vector3, conta
 
     
     // Diagonale Berechnen und ^2
-    const g = Math.pow(maxBox.subtract(minBox).length(), 2) / 2
+    const g = maxBox.subtract(minBox).length() / 2
     const RxN = contactPoint.cross(normalVector)
-    const constantPart = 50000/(2*g) * lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance)
+    const constantPart = 50000/(2*Math.pow(g, 2)) * lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance)
     const wTimesDeltaT = RxN.multiply(new Vector3(constantPart, constantPart, constantPart))
 
     const q = movingMesh.rotationQuaternion as Quaternion // Momentane Orientierung
