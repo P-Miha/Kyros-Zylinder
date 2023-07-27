@@ -5,7 +5,7 @@ import { calculateLocalPoint, index } from "./nagelDistanceField";
 //DEBUG Konstante!
 // Normalerweise 1
 const cDeltaMultiplier = 1;
-const scaling = 0.01;
+const scaling = 1;
 
 
 
@@ -58,19 +58,19 @@ export function localRadius(contactPoint: Vector3, rootPoint: Vector3, staticMes
 
 }
 
-export function lambdaAlt(minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, normalVector: Vector3, distance: float){
+export function lambdaAlt(minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, normalVector: Vector3, distance: float, rootPoint: Vector3){
     // Diagonale Berechnen und ^2
-    const g = maxBox.subtract(minBox).length() / 2
+    const g = (maxBox.subtract(minBox).length()) / 2
     // r ist der Abstand des Kontaktpunktes zum Schwerpunkts-mittelpunkt da wir vom Center als Schwerpunkt ausgehen ist der Vektor: R - Schwerpunkt, mit schwerpunkt = 0,0,0 => R
-    const r = contactPoint
+    const r = contactPoint.subtract(rootPoint)
     // NormalenVektor muss umgedreht werden, da er momentan in Kollisionsrichtung zeigt
     // const n = normalVector.scale(-1)
     const n = new Vector3(normalVector.x, normalVector.y, normalVector.z)
 
     return (distance * scaling) / (1 + (5 / (2 * Math.pow(g, 2))) * Math.pow((r.cross(n)).length(), 2)) 
 }
-export function ccDelta(distance: float, minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh, normalVector: Vector3){
-    const lambda = lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance)
+export function ccDelta(distance: float, minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, normalVector: Vector3, rootPoint: Vector3){
+    const lambda = lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance, rootPoint)
     // return normalVector.scale(distance / (1 + (5 / (2 * Math.pow(calculateBoundingBoxDiagonalLength(minBox, maxBox), 2))) * Math.pow(((contactPoint.subtract(rootPoint)).cross(normalVector)).length(), 2)))
     // Wieder den normalVektor umdrehen
     // const n = normalVector.scale(-1)
@@ -79,17 +79,18 @@ export function ccDelta(distance: float, minBox: Vector3, maxBox: Vector3, conta
     return (n.multiply(new Vector3(lambda, lambda, lambda))).multiply(new Vector3(0.4, 0.4, 0.4))
 }
 
-export function qqDelta(distance: float, minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh, normalVector: Vector3, movingMesh: Mesh){
+export function qqDelta(distance: float, minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh, normalVector: Vector3, movingMesh: Mesh, quaternion: Quaternion){
 //     // 5 geteilt durch 2*radius^2 * lambda'
 
     
     // Diagonale Berechnen und ^2
     const g = maxBox.subtract(minBox).length() / 2
-    const RxN = contactPoint.cross(normalVector)
-    const constantPart = 50000/(2*Math.pow(g, 2)) * lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance)
+    const R = contactPoint.subtract(rootPoint)
+    const RxN = R.cross(normalVector)
+    const constantPart = 5/(2*Math.pow(g, 2)) * lambdaAlt(minBox, maxBox, contactPoint, normalVector, distance, rootPoint)
     const wTimesDeltaT = RxN.multiply(new Vector3(constantPart, constantPart, constantPart))
 
-    const q = movingMesh.rotationQuaternion as Quaternion // Momentane Orientierung
+    const q = quaternion // Momentane Orientierung
     // Skalare Komponente ist in Babylon anscheinend die letzte Komponente
     const wQuaternion = new Quaternion(wTimesDeltaT.x / 2, wTimesDeltaT.y / 2, wTimesDeltaT.z / 2, 0) // Durch 2 da * 1/2
     return wQuaternion.multiply(q)

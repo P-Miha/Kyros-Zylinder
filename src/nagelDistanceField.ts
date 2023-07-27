@@ -12,6 +12,7 @@ export function index(point: Vector3, sdfFile: SDFData): number{
     if (!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)) {
         return -1; // Nicht in BoundingBox, daher trivialer Fall
     }
+    //console.log(" IN BOX: ", point)
     let calculatedPoint = point.subtract(o);
     calculatedPoint = calculatedPoint.divide(new Vector3(sdfFile.cellSize, sdfFile.cellSize, sdfFile.cellSize));
     const roundedPoint = new Vector3(
@@ -38,6 +39,9 @@ export function pointFunction(x: int, y: int, z: int, sdfFile: SDFData): Vector3
 function inBox(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
     return vector.x >= bboxMin.x && vector.y >= bboxMin.y && vector.z >= bboxMin.z && vector.x <= bboxMax.x && vector.y <= bboxMax.y && vector.z <= bboxMax.z;
 }
+export function inBoxCheck(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3): boolean{
+    return vector.x >= bboxMin.x && vector.y >= bboxMin.y && vector.z >= bboxMin.z && vector.x <= bboxMax.x && vector.y <= bboxMax.y && vector.z <= bboxMax.z;
+}
 
 /**
  *  Gegeben ein Punkt und ein Mesh, wird der Punkt in das lokale Koordinatensystem des Meshes transformiert,
@@ -56,6 +60,9 @@ export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
 }
 
 export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFData): number {
+    if(!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)){
+        return -1;
+    }
     const localPoint = calculateLocalPoint(point, mesh);
     //const gitterPoint = pointFunction(localPoint.x, localPoint.y, localPoint.z, sdfFile)
     // console.log("Localpoint: " ,localPoint)
