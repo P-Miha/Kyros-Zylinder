@@ -190,7 +190,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // Neuer Ansatz, anstatt wirklich den Pivot zu verschieben, erstellen wir eine Transform Node im Center der
     // Bounding Box und parenten den Moveable Mesh daran, um die Rotation zu übernehmen
     const npmvTransformNode = new TransformNode("NPMVTransformNode");
-    let temp = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox.centerWorld;
+    const temp = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox.centerWorld;
     npmvTransformNode.position = new Vector3(temp.x, temp.y, temp.z)
     nagelPuzzleMoveableHidden.parent = npmvTransformNode;
 
@@ -451,9 +451,11 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         // if (true){
         if (distance > 0  || distance == -1) {
             nagelPuzzleStaticVisible.material = noCollisionMaterial;
+            nagelPuzzleStaticHidden.material = noCollisionMaterial;
         } else {
             // Kollision, daher Material ändern
             nagelPuzzleStaticVisible.material = collisionMaterial;
+            nagelPuzzleStaticHidden.material = collisionMaterial;
             // An-Aus Steuerbar über Button
             if(collisionCorrectionEnabled){
                 // Starte cDelta und qDelta Berechnung
@@ -492,7 +494,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 // Setze neue Position und Orientierung
                 // Orientierung zuerst, da diese die Position eventuell beeinflusst,
                 // dannach Position um die geänderte Position von der Rotation zu überschreiben
-                npmvTransformNode.rotationQuaternion = newOrientation;
+                npmvTransformNode.rotationQuaternion = new Quaternion(newOrientation.x, newOrientation.y, newOrientation.z, newOrientation.w);
                 npmvTransformNode.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
         }
     }
