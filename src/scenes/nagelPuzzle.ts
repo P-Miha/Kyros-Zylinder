@@ -189,9 +189,37 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     
     // Neuer Ansatz, anstatt wirklich den Pivot zu verschieben, erstellen wir eine Transform Node im Center der
     // Bounding Box und parenten den Moveable Mesh daran, um die Rotation zu übernehmen
-    const npmvTransformNode = new TransformNode("NPMVTransformNode");
-    const temp = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox.centerWorld;
-    npmvTransformNode.position = new Vector3(temp.x, temp.y, temp.z)
+
+
+    function placeMeshInCenter(mesh: Mesh) {
+        // Schritt 1: Neue TransformNode erstellen
+        const centerNode = new TransformNode('CenterNode', mesh.getScene());
+      
+        // Schritt 2: Den Mittelpunkt des Meshes berechnen
+        const boundingInfo = mesh.getBoundingInfo();
+        const meshCenter = boundingInfo.boundingBox.center.clone();
+      
+        // Schritt 3: Das Mesh zum Ursprung verschieben
+        const meshToOrigin = meshCenter.scaleInPlace(-1);
+        mesh.position.addInPlace(meshToOrigin);
+      
+        // Schritt 4: Das Mesh als Kind zur TransformNode hinzufügen
+        mesh.parent = centerNode;
+      
+        // Schritt 5: Die TransformNode zum ursprünglichen Mittelpunkt des Meshes zurückverschieben
+        centerNode.position = meshCenter;
+      
+        // Schritt 6: Optional - Den falschen Center des Meshes zurücksetzen
+        mesh.setPivotMatrix(Matrix.Identity());
+      
+        // Die TransformNode zurückgeben, falls du sie später noch verwenden möchtest
+        return centerNode;
+      }
+
+    const npmvTransformNode = placeMeshInCenter(nagelPuzzleMoveableHidden);
+    const temp = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox;
+    const temp2 = temp.maximum.subtract(temp.minimum);
+    //npmvTransformNode.position = new Vector3(temp2.x, temp2.y, temp2.z)
     nagelPuzzleMoveableHidden.parent = npmvTransformNode;
 
     npmvTransformNode.rotationQuaternion = Quaternion.FromEulerVector( new Vector3(Math.PI / 2, Math.PI, 0));
@@ -476,15 +504,12 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
                 const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, collisionPoint, transformedNormal, rootPoint);
 
-                const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, collisionPoint, rootPoint, nagelPuzzleStaticHidden, transformedNormal, nagelPuzzleMoveableHidden, npmvTransformNode.rotationQuaternion as Quaternion);
+                const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, collisionPoint, rootPoint, 
+                                                    nagelPuzzleStaticHidden, transformedNormal, nagelPuzzleMoveableHidden, 
+                                                    npmvTransformNode.rotationQuaternion as Quaternion);
                 // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
 
                 const newPosition = npmvTransformNode.position.add(positionOffset);
-                console.log("DEBUG: CurrentLocalPosition: ", nagelPuzzleMoveableHidden.position)
-                console.log("CurrentPosition: ", nagelPuzzleMoveableHidden.absolutePosition)
-                console.log("PositionOffset: ", positionOffset)
-                console.log("NewPosition: ", newPosition)
-
                 const currentOrientation = npmvTransformNode.rotationQuaternion as Quaternion;
                 // console.log("CurrentOrientation: ", currentOrientation)
                 // console.log("OrientationOffset: ", orientationOffset)
@@ -501,6 +526,13 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
     nagelPuzzleMoveableVisible.position = (nagelPuzzleMoveableHidden.absolutePosition).multiply(nagelPuzzleMoveableVisible.scaling);
     nagelPuzzleMoveableVisible.rotationQuaternion = npmvTransformNode.rotationQuaternion;
+
+    //Safty Check: Setze Scaling auf 1,1,1 falls es sich verändert hat
+    nagelPuzzleMoveableVisible.scaling = new Vector3(1, 1, 1);
+    nagelPuzzleStaticVisible.scaling = new Vector3(1, 1, 1);
+    nagelPuzzleMoveableHidden.scaling = new Vector3(1, 1, 1);
+    nagelPuzzleStaticHidden.scaling = new Vector3(1, 1, 1);
+    npmvTransformNode.scaling = new Vector3(1, 1, 1);
     }) // Ende onBeforeRenderObservable
         ;
 
