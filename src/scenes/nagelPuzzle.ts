@@ -191,7 +191,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // Bounding Box und parenten den Moveable Mesh daran, um die Rotation zu übernehmen
 
 
-    function placeMeshInCenter(mesh: Mesh) {
+    function placeMeshInCenter(mesh: Mesh): TransformNode {
         // Schritt 1: Neue TransformNode erstellen
         const centerNode = new TransformNode('CenterNode', mesh.getScene());
       
@@ -373,6 +373,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
     // XR-Sitzung abrufen
     const xrSession = xr.baseExperience.sessionManager.session;
+    const xrCamera = xr.baseExperience.camera;
     
     const targetMesh = nagelPuzzleMoveableHidden;
 
@@ -435,6 +436,12 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                     // Skalierung und Rotation des Ziel-Meshes berücksichtigen
                     // const scaledPositionDelta = currentPosition.subtract(previousPosition).divide(targetMesh.scaling);
 
+                    // Erstelle TransformNode und appliere Orientierung der VR Camera
+                    const xrTransformNode = placeMeshInCenter(nagelPuzzleMoveableHidden)
+                    xrTransformNode.rotationQuaternion = xrCamera.rotationQuaternion;
+                    // Setze XrTransformNode als Parent des Moveable Meshes(TransformNode)
+
+
                     // Rotation des Controllers in das Koordinatensystem des Weltursprungs umwandeln
                     const worldOriginRotation = Quaternion.Identity();
                     const controllerRotation = worldOriginRotation.multiply(currentRotation).multiply(previousRotation.conjugate());
@@ -447,8 +454,16 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                     const scaledPositionDelta = positionDelta.divide(targetMesh.scaling);
 
                     // Ziel-Mesh transformieren
-                    targetMesh.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01)); // Skaliere die Bewegung nach Bedarf
-                    targetMesh.rotationQuaternion!.multiplyInPlace(rotationDelta);
+                    // targetMesh.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01)); // Skaliere die Bewegung nach Bedarf
+                    // targetMesh.rotationQuaternion!.multiplyInPlace(rotationDelta);
+
+                    // Apply Parent, Move(Scaled), Rotate(Scaled), Remove Parent-Link, dispose TransformNode
+                    // TransformNode wird für jede Beweung neu erstellt, da sonst perspektive der Rotation nicht stimmt(XR Camera-Ansicht)
+                    npmvTransformNode.setParent(xrTransformNode)
+                    xrTransformNode.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01));
+                    xrTransformNode.rotationQuaternion!.multiplyInPlace(rotationDelta);
+                    npmvTransformNode.setParent(null)
+                    xrTransformNode.dispose()
                 }
 
         // Vorherigen Status aktualisieren
