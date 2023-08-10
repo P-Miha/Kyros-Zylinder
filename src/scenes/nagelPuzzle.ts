@@ -60,7 +60,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         const boundingInfo = mesh.getBoundingInfo();
         const boundingBox = boundingInfo.boundingBox;
         const center = boundingBox.center;
-        console.log("Center: ", center)
         //debug
         const centerMesh = MeshBuilder.CreateBox("centerMesh", {size: 0.1})
         centerMesh.position = center;
@@ -204,7 +203,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         mesh.position.addInPlace(meshToOrigin);
       
         // Schritt 4: Das Mesh als Kind zur TransformNode hinzufügen
-        mesh.parent = centerNode;
+        //mesh.parent = centerNode;
       
         // Schritt 5: Die TransformNode zum ursprünglichen Mittelpunkt des Meshes zurückverschieben
         centerNode.position = meshCenter;
@@ -235,7 +234,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
 
     // ******************** Fix positioning **********************//
-    //nagelPuzzleMoveableHidden.position = new Vector3(-40.99, -10.84, -5.01);
+    npmvTransformNode.position = new Vector3(59.047, 0.126, -10.105);
 
     // Die URL der SDF-Datei
     const sdfFileUrl = 'https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.sdf';
@@ -264,7 +263,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
     // Setzen der Kamera initally auf den Ursprung des NagelPuzzles (Visible),
     // Manuell, damit die Kamera noch "Panning" kann
-    camera.setTarget(new Vector3(21.27, 9.95, 0));
+    // camera.setTarget(new Vector3(21.27, 9.95, 0));
     camera.alpha = 4.735
     camera.beta = 1.284
     camera.inertia = 0.01
@@ -374,6 +373,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // XR-Sitzung abrufen
     const xrSession = xr.baseExperience.sessionManager.session;
     const xrCamera = xr.baseExperience.camera;
+    xrCamera.position = new Vector3(0, 0, 0);
     
     const targetMesh = nagelPuzzleMoveableHidden;
 
@@ -392,6 +392,10 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         controller.onMotionControllerInitObservable.add(() => {
         // Event-Handler für den Trigger
         const triggerComponent = controller.motionController?.getComponent('xr-standard-trigger');
+        // Wird ausgelöst, wenn wir in WebXR bzw VR sind, daher die großen Modelle zum Berechnen ausblenden
+        // und kleine Modelle zum Anzeigen einblenden
+        nagelPuzzleMoveableHidden.isVisible = false;
+        nagelPuzzleStaticHidden.isVisible = false;
 
         if (triggerComponent) {
             triggerComponent.onButtonStateChangedObservable.add((buttonValue) => {
@@ -428,7 +432,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             // Überprüfen, ob der Controller gefunden wurde und die Komponenten vorhanden sind
             if (controller && controller.grip && controller.grip.position && controller.grip.rotationQuaternion) {
                 // Aktuelle Position und Rotation des Controllers abrufen
-                const currentPosition = controller.grip.position;
+                const currentPosition = controller.grip.absolutePosition;
                 const currentRotation = controller.grip.rotationQuaternion;
 
                 // Prüfen, ob die Position und Rotation definiert sind und der vorherige Status vorhanden ist
@@ -437,10 +441,11 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                     // const scaledPositionDelta = currentPosition.subtract(previousPosition).divide(targetMesh.scaling);
 
                     // Erstelle TransformNode und appliere Orientierung der VR Camera
-                    const xrTransformNode = placeMeshInCenter(nagelPuzzleMoveableHidden)
-                    xrTransformNode.rotationQuaternion = xrCamera.rotationQuaternion;
+                    const xrTransformNode = new TransformNode("xrTransformNode", scene);
+                    xrTransformNode.position = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox.centerWorld;
+                    xrTransformNode.rotationQuaternion = new Quaternion(0, 0, 0, 0); // Standart, prevent null
+                    xrTransformNode.rotationQuaternion = xrCamera.absoluteRotation;
                     // Setze XrTransformNode als Parent des Moveable Meshes(TransformNode)
-
 
                     // Rotation des Controllers in das Koordinatensystem des Weltursprungs umwandeln
                     const worldOriginRotation = Quaternion.Identity();
@@ -448,20 +453,19 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
                     // Berechne die Änderung der Position und Rotation des Controllers im Vergleich zum vorherigen Frame
                     const positionDelta = currentPosition.subtract(previousPosition);
-                    const rotationDelta = controllerRotation;
-
-                    // Skalierung und Rotation des Ziel-Meshes berücksichtigen
-                    const scaledPositionDelta = positionDelta.divide(targetMesh.scaling);
-
-                    // Ziel-Mesh transformieren
-                    // targetMesh.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01)); // Skaliere die Bewegung nach Bedarf
-                    // targetMesh.rotationQuaternion!.multiplyInPlace(rotationDelta);
-
+                    const rotationDelta = currentRotation.multiply(previousRotation.conjugate());
+                    
                     // Apply Parent, Move(Scaled), Rotate(Scaled), Remove Parent-Link, dispose TransformNode
                     // TransformNode wird für jede Beweung neu erstellt, da sonst perspektive der Rotation nicht stimmt(XR Camera-Ansicht)
                     npmvTransformNode.setParent(xrTransformNode)
-                    xrTransformNode.position.addInPlace(scaledPositionDelta.scaleInPlace(0.01));
-                    xrTransformNode.rotationQuaternion!.multiplyInPlace(rotationDelta);
+                    console.log(xrCamera.absoluteRotation)
+
+                    npmvTransformNode.position = npmvTransformNode.position.addInPlace(positionDelta.scaleInPlace(50));
+                    xrTransformNode.rotationQuaternion = xrTransformNode.rotationQuaternion.multiply(rotationDelta.conjugate())
+                    //npmvTransformNode.setParent(null)
+                    // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
+                    nagelPuzzleMoveableVisible.position = (nagelPuzzleMoveableHidden.absolutePosition).multiply(nagelPuzzleMoveableVisible.scaling);
+                    //nagelPuzzleMoveableVisible.rotationQuaternion = npmvTransformNode.rotationQuaternion;
                     npmvTransformNode.setParent(null)
                     xrTransformNode.dispose()
                 }
@@ -473,7 +477,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     }
     // Controller Movement Ende
 
-        console.log("Point 9 Absolute Position: ", moveableNagelPunkte[9].absolutePosition)
         /**********************************************************************
          * Kollisionsabfrage und Behebung (2)
         **********************************************************************/
@@ -484,10 +487,8 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             // Wenn wir keine debugvalue haben(-1) und die Distanz eine kollision wiederspiegelt (kleiner 0), speichere diese wenn diese tiefer ist als die bereits gespeicherte
             // Findet tiefsten eingedrungenden Punkt
             if (currentPointDistance < distance && currentPointDistance != -1 && currentPointDistance < 0) {
-                console.log("KOLLISSION")
                 distance = currentPointDistance
                 index = i
-                console.log(distance)
             }
         }
         // // eslint-disable-next-line no-constant-condition
@@ -512,7 +513,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                 const normalVector = new Vector3(normals[index].x, normals[index].y, normals[index].z);
                 let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveableHidden.getWorldMatrix());
                 transformedNormal = transformedNormal.multiply(new Vector3(1, 1, 1));
-                console.log(transformedNormal)
 
                 // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
                 //const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
@@ -543,8 +543,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     nagelPuzzleMoveableVisible.rotationQuaternion = npmvTransformNode.rotationQuaternion;
 
     //Safty Check: Setze Scaling auf 1,1,1 falls es sich verändert hat
-    nagelPuzzleMoveableVisible.scaling = new Vector3(1, 1, 1);
-    nagelPuzzleStaticVisible.scaling = new Vector3(1, 1, 1);
+    // bzw 0,01 für die kleinen Modelle
+    nagelPuzzleMoveableVisible.scaling = new Vector3(0.01, 0.01, 0.01);
+    nagelPuzzleStaticVisible.scaling = new Vector3(0.01, 0.01, 0.01);
     nagelPuzzleMoveableHidden.scaling = new Vector3(1, 1, 1);
     nagelPuzzleStaticHidden.scaling = new Vector3(1, 1, 1);
     npmvTransformNode.scaling = new Vector3(1, 1, 1);
