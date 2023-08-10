@@ -76,7 +76,7 @@ export function ccDelta(distance: float, minBox: Vector3, maxBox: Vector3, conta
     // const n = normalVector.scale(-1)
     const n = new Vector3(normalVector.x, normalVector.y, normalVector.z)
     // cDeltaMultiplier ist dafür da, um die Kraft beliebig zu Skalieren, Variable am Anfang dieser Datei. Damit kann man testweise nur 1/2 der "Kraft" anwenden oder das Doppelte
-    return (n.multiply(new Vector3(lambda, lambda, lambda))).multiply(new Vector3(0.5, 0.5, 0.5))
+    return (n.multiply(new Vector3(lambda, lambda, lambda))).multiply(new Vector3(0.3, 0.3, 0.3))
 }
 
 export function qqDelta(distance: float, minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh, normalVector: Vector3, movingMesh: Mesh, quaternion: Quaternion){
