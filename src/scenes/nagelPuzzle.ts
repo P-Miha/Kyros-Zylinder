@@ -444,7 +444,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                     const xrTransformNode = new TransformNode("xrTransformNode", scene);
                     xrTransformNode.position = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox.centerWorld;
                     xrTransformNode.rotationQuaternion = new Quaternion(0, 0, 0, 0); // Standart, prevent null
-                    xrTransformNode.rotationQuaternion = xrCamera.absoluteRotation;
+                    xrTransformNode.rotationQuaternion = controller.grip.rotationQuaternion;
                     // Setze XrTransformNode als Parent des Moveable Meshes(TransformNode)
 
                     // Rotation des Controllers in das Koordinatensystem des Weltursprungs umwandeln
@@ -453,8 +453,9 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
                     // Berechne die Änderung der Position und Rotation des Controllers im Vergleich zum vorherigen Frame
                     const positionDelta = currentPosition.subtract(previousPosition);
-                    const rotationDelta = currentRotation.multiply(previousRotation.conjugate());
-                    
+                    //const rotationDelta = currentRotation.multiply(previousRotation.conjugate());
+                    let rotationDelta = previousRotation.conjugate().multiply(currentRotation);
+                    rotationDelta = rotationDelta.invert();
                     // Apply Parent, Move(Scaled), Rotate(Scaled), Remove Parent-Link, dispose TransformNode
                     // TransformNode wird für jede Beweung neu erstellt, da sonst perspektive der Rotation nicht stimmt(XR Camera-Ansicht)
                     npmvTransformNode.setParent(xrTransformNode)
