@@ -59,15 +59,15 @@ export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
     return localPoint;
 }
 
-export function distanceToWorldpoint(point: Vector3, mesh: Mesh, sdfFile: SDFData): number {
+export function distanceToWorldpoint(point: Vector3, sdfFile: SDFData): number {
     if(!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)){
         return -1;
     }
-    const localPoint = calculateLocalPoint(point, mesh);
+   //const localPoint = calculateLocalPoint(point, mesh);
     //const gitterPoint = pointFunction(localPoint.x, localPoint.y, localPoint.z, sdfFile)
     // console.log("Localpoint: " ,localPoint)
     // console.log("Gitterpoint: " ,gitterPoint)
-    const indexofPoint = index(localPoint, sdfFile);
+    const indexofPoint = index(point, sdfFile);
     if (indexofPoint === -1) {
         return -1;
     }
