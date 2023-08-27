@@ -17,16 +17,12 @@ import "@babylonjs/loaders/STL/stlFileLoader";
 import "@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent";
 
 // Custom Importe / 
-import { calculateLocalPoint, index, index2, pointFunction, distanceToWorldpoint, inBoxCheck} from "../nagelDistanceField";
-import { calculateBoundingBoxDiagonalLength, ccDelta, qqDelta } from "../contactForce";
 import { STLFileLoader } from "@babylonjs/loaders/STL/stlFileLoader";
 // Laden und Parsen von SDF Dateien
 import { loadSDFFile, parseSDFFileContent } from '../sdfParser';
-import { SDFData } from '../sdfParser';
 import { loadOffFile, parseOffFileContent } from '../offParser';
 import NagelPuzzleStatic from "../../assets/meshes/Nagel1.stl";
 import { AdvancedDynamicTexture, Button } from "@babylonjs/gui";
-
 
 
 export class DefaultSceneWithTexture implements CreateSceneClass {
@@ -421,8 +417,6 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // (1)
     // Checke Punkte per Frame
     scene.onBeforeRenderObservable.add(() => { 
-        let distance = 1
-        let index = 0
         // Controller Movement
         // Überprüfen, ob der Trigger gedrückt ist und "Dragging" aktiv ist
         if (isDragging) {
@@ -481,64 +475,30 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         /**********************************************************************
          * Kollisionsabfrage und Behebung (2)
         **********************************************************************/
-        for (let i = 0; i < moveableNagelPunkte.length; i++) {
-            // Schaue ob wir eine Kollision haben, und wenn ja, ob diese Tiefer drinne ist als unsere bereits gespeicherte
-            
-            const currentPointDistance = distanceToWorldpoint(moveableNagelPunkte[i].absolutePosition, nagelPuzzleStaticHidden, sdfContent)
-            // Wenn wir keine debugvalue haben(-1) und die Distanz eine kollision wiederspiegelt (kleiner 0), speichere diese wenn diese tiefer ist als die bereits gespeicherte
-            // Findet tiefsten eingedrungenden Punkt
-            if (currentPointDistance < distance && currentPointDistance != -1 && currentPointDistance < 0) {
-                distance = currentPointDistance
-                index = i
-            }
+        // Kollisionsabfrage und Behebung via Worker
+        const worker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
+        const worldMatrix = nagelPuzzleMoveableHidden.getWorldMatrix();
+        // Prepare Message
+        const message = [worldMatrix, 
+            nagelPuzzleMoveableHidden.getAbsolutePosition(), 
+            nagelPuzzleMoveableHidden.rotationQuaternion
+        ]
+        // Send Message
+        worker.postMessage(message);
+
+        // Worker Event-Handler
+        worker.onmessage = (event) => {
+        // Should contain: [Distance, positionDelta, orientationDelta]
+        const result = event.data;
+        const currentPosition = nagelPuzzleMoveableHidden.getAbsolutePosition();
+        const currentRotation = nagelPuzzleMoveableHidden.rotationQuaternion;
+        // Apply Result to Mesh
+        if (result[0] < 0.1 && collisionCorrectionEnabled && currentRotation) {
+            nagelPuzzleMoveableHidden.position = currentPosition.add(result[1]);
+            nagelPuzzleMoveableHidden.rotationQuaternion = currentRotation.multiply(result[2]);
         }
-        // // eslint-disable-next-line no-constant-condition
-        // if (true){
-        if (distance > 0  || distance == -1) {
-            nagelPuzzleStaticVisible.material = noCollisionMaterial;
-            nagelPuzzleStaticHidden.material = noCollisionMaterial;
-        } else {
-            // Kollision, daher Material ändern
-            nagelPuzzleStaticVisible.material = collisionMaterial;
-            nagelPuzzleStaticHidden.material = collisionMaterial;
-            // An-Aus Steuerbar über Button
-            if(collisionCorrectionEnabled){
-                // Starte cDelta und qDelta Berechnung
-                // Tiefster Punkt umgerechnet zum lokalen Koordinatensystem
-                const collisionPoint = moveableNagelPunkte[index].absolutePosition
-                // Momentaner Root Node des NagelPuzzles als Lokaler Punkt
-                const rootPoint = nagelPuzzleMoveableHidden.absolutePosition;
+    };
 
-                // Invertiere Normalenvektor, da er in die andere Richtung zeigt als für die Berechnung benötigt
-                // ---> zu <-----
-                const normalVector = new Vector3(normals[index].x, normals[index].y, normals[index].z);
-                let transformedNormal = Vector3.TransformNormal(normalVector, nagelPuzzleMoveableHidden.getWorldMatrix());
-                transformedNormal = transformedNormal.multiply(new Vector3(1, 1, 1));
-
-                // Kollision wurde erkannt, daher berechne die benötigte Änderung in Position und Orientierung
-                //const radius = calculateBoundingBoxDiagonalLength(sdfContent.bbox.min, sdfContent.bbox.max);
-                //const positionOffset = cDelta(nagelPuzzleMoveable, currentPoint, transformedNormal, distance, radius, 1);
-                const positionOffset = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, collisionPoint, transformedNormal, rootPoint);
-
-                const orientationOffset = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, collisionPoint, rootPoint, 
-                                                    nagelPuzzleStaticHidden, transformedNormal, nagelPuzzleMoveableHidden, 
-                                                    npmvTransformNode.rotationQuaternion as Quaternion);
-                // Berechne neue Position und Orientierung (c + cDelta, q + qDelta)
-
-                const newPosition = npmvTransformNode.position.add(positionOffset);
-                const currentOrientation = npmvTransformNode.rotationQuaternion as Quaternion;
-                // console.log("CurrentOrientation: ", currentOrientation)
-                // console.log("OrientationOffset: ", orientationOffset)
-                // console.log("NewOrientation: ", currentOrientation.add(orientationOffset))
-                const newOrientation = (currentOrientation.add(orientationOffset));
-
-                // Setze neue Position und Orientierung
-                // Orientierung zuerst, da diese die Position eventuell beeinflusst,
-                // dannach Position um die geänderte Position von der Rotation zu überschreiben
-                npmvTransformNode.rotationQuaternion = new Quaternion(newOrientation.x, newOrientation.y, newOrientation.z, newOrientation.w);
-                npmvTransformNode.position = new Vector3(newPosition.x, newPosition.y, newPosition.z);
-        }
-    }
     // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
     nagelPuzzleMoveableVisible.position = (nagelPuzzleMoveableHidden.absolutePosition).multiply(nagelPuzzleMoveableVisible.scaling);
     nagelPuzzleMoveableVisible.rotationQuaternion = npmvTransformNode.rotationQuaternion;
