@@ -149,10 +149,10 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // Hierachie von Kind zu Parent Notiert: nagelPuzzleMoveableHidden <- nagelPunkte <-- Punkt0, Punkt1, Punkt2,
     const nagelPunkte = new Mesh("NagelPunkte", scene);
     nagelPunkte.parent = nagelPuzzleMoveableHidden;
-    const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.noff");
-    const offInfo = parseOffFileContent(await punkteInfo);
-    const punkte = offInfo.vertices
-    const normals = offInfo.normals
+    // const punkteInfo: Promise<string> = loadOffFile("https://raw.githubusercontent.com/P-Miha/Kyros-Zylinder/master/assets/SDFInformation/Nagel1.noff");
+    // const offInfo = parseOffFileContent(await punkteInfo);
+    // const punkte = offInfo.vertices
+    // const normals = offInfo.normals
 
 
 
@@ -213,7 +213,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
     const npmvTransformNode = placeMeshInCenter(nagelPuzzleMoveableHidden);
     const temp = nagelPuzzleMoveableHidden.getBoundingInfo().boundingBox;
-    const temp2 = temp.maximum.subtract(temp.minimum);
+    // const temp2 = temp.maximum.subtract(temp.minimum);
     //npmvTransformNode.position = new Vector3(temp2.x, temp2.y, temp2.z)
     nagelPuzzleMoveableHidden.parent = npmvTransformNode;
 
@@ -221,12 +221,12 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
 
 
     // Erstelle ein leeres Mesh an jeden dieser Punkte und parente diesen an nagelPunkte  
-    for (let i = 0; i < punkte.length; i++) {
-        const punkt = new Mesh("Punkt" + i, scene)
-        punkt.position = new Vector3(punkte[i].x , punkte[i].y, punkte[i].z);
-        punkt.parent = nagelPunkte;
-        punkt.visibility = 1;
-    }
+    // for (let i = 0; i < punkte.length; i++) {
+    //     const punkt = new Mesh("Punkt" + i, scene)
+    //     punkt.position = new Vector3(punkte[i].x , punkte[i].y, punkte[i].z);
+    //     punkt.parent = nagelPunkte;
+    //     punkt.visibility = 1;
+    // }
 
 
     // ******************** Fix positioning **********************//
@@ -417,6 +417,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
      *******************************************************************/
     // (1)
     // Checke Punkte per Frame
+    let currentFrame = 0;
     scene.onBeforeRenderObservable.add(() => { 
         // Controller Movement
         // Überprüfen, ob der Trigger gedrückt ist und "Dragging" aktiv ist
@@ -454,7 +455,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                     // Apply Parent, Move(Scaled), Rotate(Scaled), Remove Parent-Link, dispose TransformNode
                     // TransformNode wird für jede Beweung neu erstellt, da sonst perspektive der Rotation nicht stimmt(XR Camera-Ansicht)
                     npmvTransformNode.setParent(xrTransformNode)
-                    console.log(xrCamera.absoluteRotation)
+                    //console.log(xrCamera.absoluteRotation)
 
                     npmvTransformNode.position = npmvTransformNode.position.addInPlace(positionDelta.scaleInPlace(50));
                     xrTransformNode.rotationQuaternion = xrTransformNode.rotationQuaternion.multiply(rotationDelta.conjugate())
@@ -477,16 +478,20 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
          * Kollisionsabfrage und Behebung (2)
         **********************************************************************/
         // Kollisionsabfrage und Behebung via Worker
-        const worldMatrixMoveble = nagelPuzzleMoveableHidden.getWorldMatrix();
-        const worldMatrixStatic = nagelPuzzleStaticHidden.getWorldMatrix();
 
-        const worldMatrixMoveble2 = worldMatrixMoveble.clone();
-        const worldMatrixStatic2 = worldMatrixStatic.clone();
+        if (currentFrame % 30 == 0) {
+        const worldMatrixStatic = nagelPuzzleStaticHidden.getWorldMatrix();
+        const worldMatrixMoveble = nagelPuzzleMoveableHidden.getWorldMatrix();
         // Prepare Message
-        const message = [worldMatrixMoveble2, worldMatrixStatic2]
+        const message = [worldMatrixMoveble.asArray(), worldMatrixStatic.asArray()]
         // Send Message
         worker.postMessage(message);
-
+        // Reset Framecounter
+        currentFrame = 1;
+        }
+        else {      
+        currentFrame += 1;
+        }
       
 
     // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
@@ -508,13 +513,26 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         //console.log("Worker Message: ", event.data);
     // Should contain: [Distance, positionDelta, orientationDelta]
     const result = event.data;
-    const currentPosition = nagelPuzzleMoveableHidden.getAbsolutePosition();
-    const currentRotation = nagelPuzzleMoveableHidden.rotationQuaternion as Quaternion;
+
+    const positionDelta = Vector3.FromArray(result[0]);
+    const orientationDelta = Quaternion.FromArray(result[1]);
+    // console.log("Worker Message: ", result[0]);
+    // console.log("Worker Message: ", result[1]);
+    // console.log("Worker Message: ", positionDelta);
+    // console.log("Worker Message: ", orientationDelta);
+
+    const currentPosition = npmvTransformNode.position;
+    const currentRotation = npmvTransformNode.rotationQuaternion as Quaternion;
     // Apply Result to Mesh
-    if (result[0] < 0.1 && collisionCorrectionEnabled && currentRotation) {
+    if (collisionCorrectionEnabled) {
+        // Kollision
+        //console.log("Enter Collision");
         nagelPuzzleMoveableHidden.material = collisionMaterial;
-        nagelPuzzleMoveableHidden.position = currentPosition.add(result[1]);
-        nagelPuzzleMoveableHidden.rotationQuaternion = currentRotation.multiply(result[2]);
+        // Rotate anc Move via transformNode
+        const newPosition = currentPosition.add(positionDelta);
+
+        npmvTransformNode.position = newPosition
+        npmvTransformNode.rotationQuaternion = npmvTransformNode.rotationQuaternion!.add(orientationDelta);
     }
 };
 

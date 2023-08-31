@@ -50,8 +50,8 @@ export function inBoxCheck(vector: Vector3, bboxMin: Vector3, bboxMax: Vector3):
  * @param mesh 
  * @returns localpoint vom Mesh
  */
-export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
-    const worldMatrix = mesh.getWorldMatrix();
+export function calculateLocalPoint(point: Vector3, mesh: Matrix): Vector3 {
+    const worldMatrix = mesh
     const invertedWorldMatrix = new Matrix();
     worldMatrix.invertToRef(invertedWorldMatrix);
 
@@ -59,15 +59,15 @@ export function calculateLocalPoint(point: Vector3, mesh: Mesh): Vector3 {
     return localPoint;
 }
 
-export function distanceToWorldpoint(point: Vector3, sdfFile: SDFData): number {
+export function distanceToWorldpoint(point: Vector3, sdfFile: SDFData, mesh: Matrix): number {
     if(!inBox(point, sdfFile.bbox.min, sdfFile.bbox.max)){
         return -1;
     }
-   //const localPoint = calculateLocalPoint(point, mesh);
+    const localPoint = calculateLocalPoint(point, mesh);
     //const gitterPoint = pointFunction(localPoint.x, localPoint.y, localPoint.z, sdfFile)
     // console.log("Localpoint: " ,localPoint)
     // console.log("Gitterpoint: " ,gitterPoint)
-    const indexofPoint = index(point, sdfFile);
+    const indexofPoint = index(localPoint, sdfFile);
     if (indexofPoint === -1) {
         return -1;
     }

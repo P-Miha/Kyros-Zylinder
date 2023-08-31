@@ -51,12 +51,12 @@ export function calculateBoundingBoxDiagonalLength(minBox: Vector3, maxBox: Vect
     return diagonalLength / 2;
   }
 
-export function localRadius(contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh){
-    const localContactPoint = calculateLocalPoint(contactPoint, staticMesh)
-    const localRootPoint = calculateLocalPoint(rootPoint, staticMesh)
-    return localContactPoint.subtract(localRootPoint)
+// export function localRadius(contactPoint: Vector3, rootPoint: Vector3, staticMesh: Mesh){
+//     const localContactPoint = calculateLocalPoint(contactPoint, staticMesh)
+//     const localRootPoint = calculateLocalPoint(rootPoint, staticMesh)
+//     return localContactPoint.subtract(localRootPoint)
 
-}
+// }
 
 export function lambdaAlt(minBox: Vector3, maxBox: Vector3, contactPoint: Vector3, normalVector: Vector3, distance: float, rootPoint: Vector3){
     // Diagonale Berechnen und ^2

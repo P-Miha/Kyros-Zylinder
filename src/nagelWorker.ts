@@ -1,4 +1,4 @@
-import { Matrix, Mesh, Quaternion, Vector3, float, int} from "@babylonjs/core";
+import { Matrix, Quaternion, Vector3} from "@babylonjs/core";
 import { SDFData, loadSDFFile, parseSDFFileContent} from "./sdfParser";
 import { distanceToWorldpoint } from "./nagelDistanceField";
 import { loadOffFile, parseOffFileContent } from "./offParser";
@@ -26,57 +26,59 @@ const loadFile = loadSDFFile(sdfFileUrl);
 
 const sdfContent = parseSDFFileContent(await loadFile);
 
+
+
 // OffInfo = Punkte auf beweglichem Objekt
 // SDFContent = SDF Daten des statischen Objekts
+// Prepare variables for the worker
+
 
 //Listener für die Nachrichten
 self.addEventListener("message", (event) => {
-    // Kriege Input in Form:
-    // [MeshWorldMatrix, WorldPosition, Orientation]
-    const worldMatrixMoveable: Matrix = Matrix.FromArray(event.data[0]);
-    const worldMatrixStatic: Matrix = Matrix.FromArray(event.data[1]);
 
-    console.log("WorldMatrixMoveable: ", worldMatrixMoveable);
-    const worldPositionMoveable = new Vector3(0, 0, 0);
-    const orientationMoveable = new Quaternion(0, 0, 0, 0);
-    const scalingMoveable = new Vector3(0, 0, 0);
+     const worldMatrixMoveable = Matrix.FromArray(event.data[0]);
+     const worldMatrixStatic = Matrix.FromArray(event.data[1]);
 
+    //console.log("WorldMatrixMoveable: ", worldMatrixMoveable);3
+     const worldPositionMoveable =  Vector3.Zero();
+     const orientationMoveable =  Quaternion.Zero();
+    
     // decompose WorldMatrixStatic and updates given parameters
     worldMatrixMoveable.decompose(undefined, orientationMoveable, worldPositionMoveable);
-
     // decompose WorldMatrix
-    const worldPositionStatic = new Vector3(0, 0, 0);
-    const orientationStatic = new Quaternion(0, 0, 0, 0);
-    const scalingStatic = new Vector3(0, 0, 0);
+     const worldPositionStatic = Vector3.Zero()
+     const orientationStatic = Quaternion.Zero();
 
-    worldMatrixStatic.decompose(scalingStatic, orientationStatic, worldPositionStatic);
-    
-    const newPositions = CalculatePoints(offInfo.vertices, worldMatrixMoveable);
-    const newPositionsLocal = CalculateLocalPoints(newPositions, worldMatrixMoveable);
-    const distanceResult = CalculateDistance(newPositionsLocal, sdfContent);
+    worldMatrixStatic.decompose(undefined, orientationStatic, worldPositionStatic);
+    const absolutePosition = CalculatePoints(offInfo.vertices, worldMatrixMoveable);
+    //const relativePosition = CalculateLocalPoints(absolutePosition, worldMatrixStatic);
+    const distanceResult = CalculateDistance(absolutePosition, sdfContent, worldMatrixStatic);
 
     const distance = distanceResult[0];
     const index = distanceResult[1];
+    const contactPoint = absolutePosition[index];
+    //empty array
+
 
     //Update Normalenvektor
-    const normalVector = new Vector3(offInfo.normals[index].x, offInfo.normals[index].y, offInfo.normals[index].z);
-    let transformedNormal = Vector3.TransformNormal(normalVector, worldMatrixMoveable);
-    transformedNormal = transformedNormal.multiply(new Vector3(1, 1, 1));
+     const normalVector = new Vector3(offInfo.normals[index].x, offInfo.normals[index].y, offInfo.normals[index].z);
+    const transformedNormal = Vector3.TransformNormal(normalVector, worldMatrixMoveable);
+    //transformedNormal = transformedNormal.multiply(new Vector3(1, 1, 1));
 
     if (distance < 0.1) {
-        console.log("Kollision");
         //self.postMessage(distance, index);
         // Distance kleiner gleich 0, daher Kollision
         // Berechne Delta
-        const positionDelta = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, 
-            newPositions[index], transformedNormal, worldPositionMoveable);
+         const positionDelta = ccDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, 
+            contactPoint, transformedNormal, worldPositionMoveable);
         const orientationDelta = qqDelta(distance, sdfContent.bbox.min, sdfContent.bbox.max, 
-            newPositions[index], worldPositionMoveable, transformedNormal, orientationMoveable);
+            contactPoint, worldPositionMoveable, transformedNormal, orientationMoveable);
         // Above should send the orientation of the moveable object 
         // Send Info back to Main Thread
-        console.log("PositionDelta: ", positionDelta);
-        console.log("OrientationDelta: ", orientationDelta);
-        self.postMessage([positionDelta, orientationDelta]);
+        //console.log("PositionDelta: ", positionDelta);
+        //console.log("OrientationDelta: ", orientationDelta);
+        // convert result to array
+        self.postMessage([positionDelta.asArray(), orientationDelta.asArray()]);
     }
 });
 
@@ -97,18 +99,20 @@ function CalculatePoints(points: Vector3[], meshWorldMatrix: Matrix) {
     points.forEach((point) => {
         newPositions.push(Vector3.TransformCoordinates(point, meshWorldMatrix));
     });
+    //console.log("NewPositions: ", newPositions);
     return newPositions;
 }
 // Berechne die Distanz des Punktes zur SDF um zu prüfen ob Kollisionen vorliegen
-function CalculateDistance(points: Vector3[], sdfData: SDFData) {
+function CalculateDistance(points: Vector3[], sdfData: SDFData, worldMatrixStatic: Matrix) {
     let lowestDistance = 1;
     let pointIndex = 0;
-    points.forEach((point) => {
-        const distance = distanceToWorldpoint(point, sdfData);
-        if (distance < lowestDistance) {
+    points.forEach((point) => { 
+        const distance = distanceToWorldpoint(point, sdfData, worldMatrixStatic);
+        if (distance < lowestDistance && distance != -1  && distance < 0) {
             lowestDistance = distance;
             pointIndex = points.indexOf(point);
         }
+
     });
 
     // return Distance , Index
