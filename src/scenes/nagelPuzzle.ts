@@ -409,7 +409,8 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
         });
     }
     });        
-
+    // erstelle Worker
+    const worker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
     /*******************************************************************
      * Each Frame Check: (2)Beinhaltet Kollisionserkennung und behebung
      *                   (1)sowie das Bewegen des Moveable Meshes durch VR
@@ -476,28 +477,17 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
          * Kollisionsabfrage und Behebung (2)
         **********************************************************************/
         // Kollisionsabfrage und Behebung via Worker
-        const worker = new Worker(new URL('../nagelWorker.ts', import.meta.url))
-        const worldMatrix = nagelPuzzleMoveableHidden.getWorldMatrix();
+        const worldMatrixMoveble = nagelPuzzleMoveableHidden.getWorldMatrix();
+        const worldMatrixStatic = nagelPuzzleStaticHidden.getWorldMatrix();
+
+        const worldMatrixMoveble2 = worldMatrixMoveble.clone();
+        const worldMatrixStatic2 = worldMatrixStatic.clone();
         // Prepare Message
-        const message = [worldMatrix, 
-            nagelPuzzleMoveableHidden.getAbsolutePosition(), 
-            nagelPuzzleMoveableHidden.rotationQuaternion
-        ]
+        const message = [worldMatrixMoveble2, worldMatrixStatic2]
         // Send Message
         worker.postMessage(message);
 
-        // Worker Event-Handler
-        worker.onmessage = (event) => {
-        // Should contain: [Distance, positionDelta, orientationDelta]
-        const result = event.data;
-        const currentPosition = nagelPuzzleMoveableHidden.getAbsolutePosition();
-        const currentRotation = nagelPuzzleMoveableHidden.rotationQuaternion;
-        // Apply Result to Mesh
-        if (result[0] < 0.1 && collisionCorrectionEnabled && currentRotation) {
-            nagelPuzzleMoveableHidden.position = currentPosition.add(result[1]);
-            nagelPuzzleMoveableHidden.rotationQuaternion = currentRotation.multiply(result[2]);
-        }
-    };
+      
 
     // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
     nagelPuzzleMoveableVisible.position = (nagelPuzzleMoveableHidden.absolutePosition).multiply(nagelPuzzleMoveableVisible.scaling);
@@ -512,6 +502,21 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     npmvTransformNode.scaling = new Vector3(1, 1, 1);
     }) // Ende onBeforeRenderObservable
         ;
+
+    // Worker Event-Handler
+    worker.onmessage = (event) => {
+        //console.log("Worker Message: ", event.data);
+    // Should contain: [Distance, positionDelta, orientationDelta]
+    const result = event.data;
+    const currentPosition = nagelPuzzleMoveableHidden.getAbsolutePosition();
+    const currentRotation = nagelPuzzleMoveableHidden.rotationQuaternion as Quaternion;
+    // Apply Result to Mesh
+    if (result[0] < 0.1 && collisionCorrectionEnabled && currentRotation) {
+        nagelPuzzleMoveableHidden.material = collisionMaterial;
+        nagelPuzzleMoveableHidden.position = currentPosition.add(result[1]);
+        nagelPuzzleMoveableHidden.rotationQuaternion = currentRotation.multiply(result[2]);
+    }
+};
 
         return scene;
     };
