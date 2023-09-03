@@ -31,8 +31,17 @@ const sdfContent = parseSDFFileContent(await loadFile);
 // OffInfo = Punkte auf beweglichem Objekt
 // SDFContent = SDF Daten des statischen Objekts
 // Prepare variables for the worker
-
-
+const worldPositionMoveable =  Vector3.Zero();
+const orientationMoveable =  Quaternion.Zero();
+const worldPositionStatic = Vector3.Zero()
+const orientationStatic = Quaternion.Zero();
+let absolutePosition: Vector3[] = [];
+let distanceResult: number[] = [];
+let distance = 0;
+let index = 0;
+let contactPoint = absolutePosition[index];
+let normalVector = Vector3.Zero();
+let transformedNormal = Vector3.Zero();
 //Listener für die Nachrichten
 self.addEventListener("message", (event) => {
 
@@ -40,29 +49,26 @@ self.addEventListener("message", (event) => {
      const worldMatrixStatic = Matrix.FromArray(event.data[1]);
 
     //console.log("WorldMatrixMoveable: ", worldMatrixMoveable);3
-     const worldPositionMoveable =  Vector3.Zero();
-     const orientationMoveable =  Quaternion.Zero();
+
     
     // decompose WorldMatrixStatic and updates given parameters
     worldMatrixMoveable.decompose(undefined, orientationMoveable, worldPositionMoveable);
     // decompose WorldMatrix
-     const worldPositionStatic = Vector3.Zero()
-     const orientationStatic = Quaternion.Zero();
-
     worldMatrixStatic.decompose(undefined, orientationStatic, worldPositionStatic);
-    const absolutePosition = CalculatePoints(offInfo.vertices, worldMatrixMoveable);
-    //const relativePosition = CalculateLocalPoints(absolutePosition, worldMatrixStatic);
-    const distanceResult = CalculateDistance(absolutePosition, sdfContent, worldMatrixStatic);
 
-    const distance = distanceResult[0];
-    const index = distanceResult[1];
-    const contactPoint = absolutePosition[index];
+    absolutePosition = CalculatePoints(offInfo.vertices, worldMatrixMoveable);
+    //const relativePosition = CalculateLocalPoints(absolutePosition, worldMatrixStatic);
+    distanceResult = CalculateDistance(absolutePosition, sdfContent, worldMatrixStatic);
+
+    distance = distanceResult[0];
+    index = distanceResult[1];
+    contactPoint = absolutePosition[index];
     //empty array
 
 
     //Update Normalenvektor
-     const normalVector = new Vector3(offInfo.normals[index].x, offInfo.normals[index].y, offInfo.normals[index].z);
-    const transformedNormal = Vector3.TransformNormal(normalVector, worldMatrixMoveable);
+    normalVector =  new Vector3(offInfo.normals[index].x, offInfo.normals[index].y, offInfo.normals[index].z);
+    transformedNormal = Vector3.TransformNormal(normalVector, worldMatrixMoveable);
     //transformedNormal = transformedNormal.multiply(new Vector3(1, 1, 1));
 
     if (distance < 0.1) {
@@ -78,20 +84,22 @@ self.addEventListener("message", (event) => {
         //console.log("PositionDelta: ", positionDelta);
         //console.log("OrientationDelta: ", orientationDelta);
         // convert result to array
-        self.postMessage([positionDelta.asArray(), orientationDelta.asArray()]);
+        self.postMessage([positionDelta.asArray(), orientationDelta.asArray(), 1]);
+    }
+    else {
+        //console.log("Keine Kollision");
+        self.postMessage([Vector3.Zero().asArray(), Quaternion.Zero().asArray(), -1]);
     }
 });
 
-//Funktionen
-// Berechne die Punktposition wo diese im lokalen Koordinatensystem des Meshes liegen, basierend auf der Worldmatrix des Meshes
-function CalculateLocalPoints(points: Vector3[], meshWorldMatrix: Matrix) {
-    const newPositions: Vector3[] = [];
-    const meshWorldMatrixInvert = meshWorldMatrix.invert();
-    points.forEach((point) => {
-        newPositions.push(Vector3.TransformCoordinates(point, meshWorldMatrixInvert));
-    });
-    return newPositions;
-}
+// Cleanup
+ absolutePosition = [];
+ distanceResult= [];
+ distance = 0;
+ index = 0;
+ contactPoint = Vector3.Zero();
+ normalVector = Vector3.Zero();
+ transformedNormal = Vector3.Zero();
 
 // Berechne die aktuelle Position der Punkte basierend auf der Worldmatrix des Meshes
 function CalculatePoints(points: Vector3[], meshWorldMatrix: Matrix) {
