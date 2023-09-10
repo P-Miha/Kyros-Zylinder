@@ -84,6 +84,7 @@ self.addEventListener("message", (event) => {
         //console.log("PositionDelta: ", positionDelta);
         //console.log("OrientationDelta: ", orientationDelta);
         // convert result to array
+        //self.postMessage([Vector3.Zero().asArray(), Quaternion.Zero().asArray(), -1]);
         self.postMessage([positionDelta.asArray(), orientationDelta.asArray(), 1]);
     }
     else {
@@ -114,15 +115,18 @@ function CalculatePoints(points: Vector3[], meshWorldMatrix: Matrix) {
 function CalculateDistance(points: Vector3[], sdfData: SDFData, worldMatrixStatic: Matrix) {
     let lowestDistance = 1;
     let pointIndex = 0;
-    points.forEach((point) => { 
-        const distance = distanceToWorldpoint(point, sdfData, worldMatrixStatic);
-        if (distance < lowestDistance && distance != -1  && distance < 0) {
+    let distance = 0;
+    for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        const distanceIndex = distanceToWorldpoint(point, sdfData.bbox.min, sdfData.bbox.max, sdfData.cellSize, sdfData.res
+            , worldMatrixStatic);
+        distance = sdfData.distances[distanceIndex];
+        if (distance < lowestDistance && distance != -1 && distance < 0) {
             lowestDistance = distance;
-            pointIndex = points.indexOf(point);
+            pointIndex = i;
         }
+    }
 
-    });
-
-    // return Distance , Index
+    // Return Distance and Index
     return [lowestDistance, pointIndex];
 }
