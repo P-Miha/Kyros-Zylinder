@@ -1034,6 +1034,8 @@ object-assign
 
 /*! core/Events/pointerEvents */
 
+/*! core/Gizmos/gizmo */
+
 /*! core/Lights/directionalLight */
 
 /*! core/Lights/light */

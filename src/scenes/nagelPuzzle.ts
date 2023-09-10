@@ -466,7 +466,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
             const worldMatrixStatic = nagelPuzzleStaticHidden.getWorldMatrix();
             const worldMatrixMoveble = nagelPuzzleMoveableHidden.getWorldMatrix();
             // Send Message, if Worker is not busy
-            console.log("Sending Message to Worker", workerHasJob)
+            //console.log("Sending Message to Worker", workerHasJob)
             worker.postMessage([worldMatrixMoveble.asArray(), worldMatrixStatic.asArray()]);
             // update workerHasJob
             workerHasJob = true;
@@ -491,7 +491,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
     // Worker Event-Handler
     worker.onmessage = (event) => {
         const errorFlag = event.data[2];
-        console.log("Worker Message received", errorFlag)
+        //console.log("Worker Message received", errorFlag)
         if (errorFlag === 1 || errorFlag === -1) {
             workerHasJob = false;
         }
