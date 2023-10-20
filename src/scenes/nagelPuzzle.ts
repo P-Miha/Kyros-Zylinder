@@ -438,7 +438,7 @@ export class DefaultSceneWithTexture implements CreateSceneClass {
                     npmvTransformNode.setParent(xrTransformNode)
                     //console.log(xrCamera.absoluteRotation)
 
-                    npmvTransformNode.position = npmvTransformNode.position.addInPlace(positionDelta.scaleInPlace(50));
+                    xrTransformNode.position = xrTransformNode.position.addInPlace(positionDelta.scaleInPlace(50));
                     xrTransformNode.rotationQuaternion = xrTransformNode.rotationQuaternion.multiply(rotationDelta.conjugate())
                     //npmvTransformNode.setParent(null)
                     // Setze Visible Mesh's Position und Rotation auf Hidden Mesh's Position und Rotation skaliert mit dem Scaling des Visible Meshes
